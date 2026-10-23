@@ -35,6 +35,11 @@ dist/
 *.log
 logs/
 
+# 临时调试文件（下划线前缀）
+_*.txt
+_*.log
+_.*
+
 # 测试与缓存
 .pytest_cache/
 .mypy_cache/
