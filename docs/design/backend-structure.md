@@ -150,24 +150,34 @@ class Settings(BaseSettings):
 
 ---
 
-## 4. 依赖清单（pyproject.toml 核心）
+## 4. 依赖管理（uv）
 
-```
-langgraph
-langchain-core
-langchain-openai        # 可替换为其他 provider
-fastapi
-uvicorn[standard]
-sqlalchemy[asyncio]
-asyncpg
-alembic
-pydantic
-pydantic-settings
-redis
-psycopg / psycopg2-binary
+统一使用 **uv** 管理 Python 依赖与虚拟环境，禁止 pip/poetry。
+
+```bash
+uv sync                       # 同步依赖（含 dev 组）
+uv add <pkg>                  # 新增运行时依赖
+uv add --dev <pkg>            # 新增开发依赖
+uv run uvicorn app.main:app --reload
+uv run pytest
+uv run alembic upgrade head
 ```
 
-> 具体 provider 包按需引入，通过 gateway 抽象层解耦，避免锁定单一厂商。
+`pyproject.toml` 核心依赖：
+
+```toml
+[project]
+dependencies = [
+  "fastapi", "uvicorn[standard]", "pydantic", "pydantic-settings",
+  "sqlalchemy[asyncio]", "asyncpg", "alembic", "redis", "httpx",
+  "langgraph", "langchain-core",
+]
+
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "aiosqlite", "ruff"]
+```
+
+> 厂商 SDK 按需通过 `uv add` 引入，经模型网关抽象层解耦，避免锁定单一厂商。`uv.lock` 必须入库。
 
 ---
 

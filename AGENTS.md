@@ -24,6 +24,7 @@
 | 层 | 技术选型 | 说明 |
 |---|---|---|
 | 后端语言 | Python 3.11+ | 统一使用 Python |
+| **包管理（后端）** | **uv** | 统一使用 `uv`；禁止用 pip/poetry 安装依赖 |
 | 编排框架 | **LangGraph** | 有状态图编排、智能路由、人工介入（human-in-the-loop） |
 | 后端框架 | FastAPI | REST + WebSocket/SSE 流式接口 |
 | LLM 接入 | LangChain / 直接 SDK | 统一抽象层，可插拔多家模型 |
@@ -37,6 +38,17 @@
 | 包管理（前端） | pnpm | 统一使用 pnpm |
 
 > 除上述选型外，如需引入新的第三方依赖，必须在 PR/提交说明中说明理由。
+
+### 2.1 Python 依赖与运行约定（强制）
+
+- 依赖声明写在 `backend/pyproject.toml`；运行时依赖放 `dependencies`，开发工具放 `[dependency-groups].dev`。
+- 安装/同步依赖统一用 `uv sync`，新增依赖用 `uv add <pkg>` / `uv add --dev <pkg>`。
+- 运行命令统一用 `uv run <cmd>`，例如：
+  - 跑服务：`uv run uvicorn app.main:app --reload`
+  - 跑测试：`uv run pytest`
+  - 迁移：`uv run alembic upgrade head`
+- `uv.lock` 必须提交到仓库，保证团队与 CI 环境一致。
+- 禁止提交 `.venv/`。
 
 ---
 
