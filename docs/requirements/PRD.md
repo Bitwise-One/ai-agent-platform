@@ -2,7 +2,7 @@
 
 | 项目名称 | 通用智能体平台（General-Purpose Agent Platform） |
 |---|---|
-| 文档版本 | v1.0 |
+| 文档版本 | v1.1 |
 | 文档状态 | 草稿（待评审） |
 | 创建日期 | 2026-10-24 |
 | 技术栈 | Python + LangGraph + FastAPI / React 18 + TypeScript |
@@ -142,6 +142,46 @@
 | FR-CV-06 | 会话级访问控制（仅会话所属终端用户/授权管理员可读） | P0 |
 | FR-CV-07 | 会话级配额（单会话 token、时长、消息数上限） | P1 |
 
+#### 4.3.1 会话与任务状态机（重点）
+
+> 「结束态必达」的前提是状态机明确定义。每个会话内的**一次执行（任务 run）**须遵循以下生命周期，禁止出现无定义的中间态。
+
+```
+                 ┌─────────────────────────────────────────┐
+                 │               终态（结束态必达）            │
+                 │  completed / failed / degraded /         │
+                 │  timed_out / cancelled / escalated       │
+                 └─────────────────────────────────────────┘
+                                  ▲  ▲  ▲  ▲  ▲  ▲
+                                  │  │  │  │  │  │
+created ──▶ running ──▶ (waiting_human) ──▶ ...
+              │  ▲
+              │  └── retry ──┐
+              ▼             │
+          failed/timed_out ─┘
+```
+
+**任务状态定义：**
+
+| 状态 | 说明 | 可迁移到 |
+|---|---|---|
+| `created` | 任务已创建，尚未开始 | `running` |
+| `running` | 图执行中 | `waiting_human`、各终态 |
+| `waiting_human` | 等待人工介入确认/输入 | `running`（继续）、`cancelled` |
+| `completed` | 正常完成（终态） | — |
+| `degraded` | 降级完成（如主模型失败走规则/小模型）（终态） | — |
+| `failed` | 执行失败（终态） | — |
+| `timed_out` | 超时终止（终态） | — |
+| `cancelled` | 人工/主动取消（终态） | — |
+| `escalated` | 升级转人工（终态） | — |
+
+**状态机约束：**
+
+- 所有状态迁移必须可观测（写入 trace/审计）。
+- 进入 `waiting_human` 必须带超时，超时后自动流转（如 `escalated` 或 `timed_out`）。
+- 任何非终态任务在进程崩溃/重启后，可通过 checkpoint 恢复并继续。
+- 终态不可逆；如需重试，创建新 run 而非原地改状态。
+
 ### 4.4 Agent 管理
 
 | 编号 | 需求 | 优先级 |
@@ -183,6 +223,23 @@
 - 路由决策过程可解释、可追踪（记录到 trace）。
 - 支持并行分发到多个 Agent 后聚合结果（fan-out / fan-in）。
 
+#### 4.6.1 多 Agent 协作编排模式
+
+「路由」解决的是"派给谁"，「协作模式」解决的是"多个 Agent 怎么一起干活"。平台须支持以下四种编排拓扑，供工作流按场景选用：
+
+| 模式 | 说明 | 适用场景 | LangGraph 实现 |
+|---|---|---|---|
+| **中心化调度** | 中控节点路由分发任务给子 Agent，汇总结果 | 任务可分派、有明确分工 | Supervisor 子图 |
+| **循环接力** | Agent A 输出作为 Agent B 输入，顺序接力 | 流水线式加工（撰写→评审→润色） | 顺序节点链 |
+| **广播投票** | 多个 Agent 并行产出，汇总节点投票/仲裁 | 需要多方观点、择优 | fan-out / fan-in |
+| **分层子图** | 每层子图封装一类 Agent 能力，层级嵌套 | 复杂领域分层治理 | Subgraph 嵌套 |
+
+**协作模式约束：**
+
+- 所有模式须受「收敛检测 + 最大轮次」约束，防止多 Agent 甩锅循环（见 4.13.7）。
+- 并行模式下，各 Agent 输出写独立临时字段，汇总节点统一合并，禁止并行写公共状态。
+- 协作拓扑可可视化编排，运行时可高亮展示实际流转路径。
+
 ### 4.7 MCP 服务集成
 
 | 编号 | 需求 | 优先级 |
@@ -215,6 +272,17 @@
 | FR-K-04 | 检索增强生成（RAG）接入 Agent | P0 |
 | FR-K-05 | 知识库权限与版本管理 | P1 |
 | FR-K-06 | 检索质量评估与调优 | P2 |
+
+#### 4.9.1 知识库权限与检索治理
+
+| 编号 | 需求 | 优先级 |
+|---|---|---|
+| FR-K-07 | **文档级权限隔离**：文档/知识库可配置访问范围，检索时按请求方权限过滤，禁止越权召回 | P0 |
+| FR-K-08 | 知识库级访问控制（应用/Agent/成员维度授权） | P0 |
+| FR-K-09 | **引用溯源**：RAG 回答必须附带引用来源（文档、片段），支持前端展示与跳转 | P0 |
+| FR-K-10 | **检索质量监控**：召回命中率、相关度分布、无结果率统计 | P1 |
+| FR-K-11 | 检索兜底：低相关度/无结果时不强行编造，走降级或如实告知 | P0 |
+| FR-K-12 | 文档同步与增量更新，删除后向量同步清理（防止脏数据召回） | P1 |
 
 ### 4.10 隐藏返回格式（Hidden Response）
 
@@ -249,6 +317,51 @@
 ```
 
 支持的 `action` 类型（可扩展）：`open_form`、`navigate`、`show_modal`、`refresh_data`、`render_chart`、`call_function`、`download_file`、`custom`。
+
+#### 4.10.1 流式事件协议（SSE / WebSocket）
+
+隐藏返回必须与普通消息、工具调用、错误事件在**同一条流**中并行传输，靠统一的 `event` 类型区分。前端 SDK 据此决定「渲染为聊天内容」还是「拦截触发动作」。
+
+| 事件类型 `event` | 含义 | 前端处理 |
+|---|---|---|
+| `meta` | 元信息（run_id、conversation_id、版本） | 初始化 |
+| `token` | 普通文本 token 增量 | 追加渲染到聊天框 |
+| `message` | 完整消息（非流式场景） | 渲染 |
+| `tool_call` | 工具调用开始/结束/结果 | 状态展示（如"正在查询…"） |
+| `hidden` | **隐藏返回**（不展示） | 拦截并触发 action |
+| `status` | 任务状态迁移（见 4.3.1） | 更新状态 UI |
+| `error` | 错误/降级通知 | 错误提示或静默降级 |
+| `done` | 流结束（携带终止状态） | 关闭流、收尾 |
+
+**协议约束：**
+
+- 每个事件必须带 `event`、`data`、`id`（单调递增）、`run_id`。
+- `hidden` 事件与 `token` 事件可交错出现，顺序按服务端产生时序。
+- `done` 事件必须携带最终状态（`completed` / `degraded` / `failed` 等），前端据此判断结果。
+- 断线重连：SDK 通过 `id` 续传，或按 `run_id` 重新拉取状态，保证不丢事件、不重复执行（幂等）。
+- 隐藏返回的 `action` 必须经过服务端白名单校验，非法 action 丢弃并告警。
+
+**示例流：**
+
+```
+event: meta
+data: {"run_id":"r1","conversation_id":"c1","version":"v1"}
+
+event: token
+data: {"text":"正在为您查询"}
+
+event: tool_call
+data: {"tool":"search","status":"start"}
+
+event: hidden
+data: {"type":"hidden","action":"render_chart","payload":{"chart_id":"c1"}}
+
+event: token
+data: {"text":"..."}
+
+event: done
+data: {"status":"completed"}
+```
 
 ### 4.11 管理台（React）与动效需求
 
@@ -361,6 +474,77 @@
 | FR-D-05 | State 膨胀治理：持久/临时字段分离、消息滚动截断、快照 TTL、大对象外部存储只存引用 | P0 |
 | FR-D-06 | 状态污染阻断：最大迭代、关键节点状态校验、支持回滚历史快照、异常会话隔离 | P1 |
 
+#### 4.13.9 模型网关（LLM 抽象层）
+
+> 多模型接入、路由、降级、配额、密钥轮换统一收敛到模型网关，Agent/工作流不直接面向具体模型厂商，而是面向网关的模型能力抽象。
+
+| 编号 | 需求 | 优先级 |
+|---|---|---|
+| FR-MG-01 | 统一模型抽象：屏蔽 OpenAI/Anthropic/国产大模型等差异，提供统一接口 | P0 |
+| FR-MG-02 | 模型注册与配置：模型名称、上下文长度、价格、能力标签、供应商 | P0 |
+| FR-MG-03 | 模型路由：按任务复杂度/成本/延迟/租户偏好选择模型 | P0 |
+| FR-MG-04 | 模型降级：主模型超时/限流自动切换到备用模型 | P0 |
+| FR-MG-05 | 模型级配额与限流：租户/应用/模型三级限流 | P0 |
+| FR-MG-06 | 密钥集中管理与轮换：供应商密钥不落 Agent，网关统一持有 | P0 |
+| FR-MG-07 | 调用计量：按模型/租户/应用统计 token 与成本 | P0 |
+| FR-MG-08 | 模型健康检查与熔断：连续失败触发熔断，恢复后自愈 | P1 |
+
+### 4.14 外部接入协议（API / SDK 契约）
+
+> 平台是"给他人使用"的，因此对外接口契约是一等公民。平台须提供统一、稳定、有版本号的接入协议，覆盖 C 端应用、开发者 SDK、第三方系统三类接入方。
+
+#### 4.14.1 接入方类型
+
+| 接入方 | 场景 | 接入方式 |
+|---|---|---|
+| **C 端应用** | 终端用户直接使用 AI 应用 | 前端 SDK（JS/TS）+ 流式协议 |
+| **开发者/后端系统** | 服务端集成、批量调用 | REST API + 流式 SSE/WebSocket |
+| **第三方系统** | 数据回写、Webhook 通知 | Webhook + 事件订阅 |
+
+#### 4.14.2 鉴权方式
+
+| 编号 | 需求 | 优先级 |
+|---|---|---|
+| FR-API-01 | **应用级 API Key**：每个应用颁发独立密钥，用于 C 端/后端调用 | P0 |
+| FR-API-02 | **用户级 JWT**：终端用户身份令牌，携带 `user_id`，用于会话隔离 | P0 |
+| FR-API-03 | API Key 支持权限分级（只读/写/管理）、有效期、吊销与轮换 | P0 |
+| FR-API-04 | 所有请求强制携带 `tenant_id + app_id + conversation_id/user_id` 上下文 | P0 |
+| FR-API-05 | 接口版本化（`/v1/...`），破坏性变更走新版本，旧版本保留兼容期 | P1 |
+
+#### 4.14.3 核心接口清单
+
+| 接口 | 方法 | 说明 | 优先级 |
+|---|---|---|---|
+| `/v1/apps/{app_id}/chat` | POST | 创建会话并发起对话（阻塞或返回流） | P0 |
+| `/v1/apps/{app_id}/chat/stream` | POST | 流式对话（SSE/WebSocket） | P0 |
+| `/v1/conversations` | POST/GET | 会话创建、列表、详情、删除 | P0 |
+| `/v1/conversations/{id}/messages` | GET | 历史消息分页 | P0 |
+| `/v1/conversations/{id}/interrupt` | POST | 人工介入 / 取消执行 | P1 |
+| `/v1/webhooks/{app_id}` | POST | 第三方事件订阅（执行完成、异常） | P1 |
+
+#### 4.14.4 SDK 能力要求
+
+| 编号 | 需求 | 优先级 |
+|---|---|---|
+| FR-API-06 | 前端 SDK（JS/TS）：连接管理、流式解析、隐藏返回拦截、断线重连 | P1 |
+| FR-API-07 | 服务端 SDK（Python）：会话管理、同步/异步调用、重试封装 | P1 |
+| FR-API-08 | SDK 支持自定义事件处理器，隐藏返回触发开发者注册的回调 | P1 |
+| FR-API-09 | SDK 提供幂等键（idempotency key）支持，防重复提交 | P1 |
+
+### 4.15 灰度发布与 Prompt 版本管理
+
+> 企业落地必须支持「改动可灰度、可回滚」，杜绝直接全量上线高风险变更。
+
+| 编号 | 需求 | 优先级 |
+|---|---|---|
+| FR-V-01 | **Prompt 版本管理**：系统提示词、Agent 配置、工作流定义的版本化存储与 diff | P0 |
+| FR-V-02 | **灰度发布**：新版本按百分比/租户/白名单渐进放量 | P0 |
+| FR-V-03 | **A/B 测试**：同一应用多个版本并行分流，对比任务成功率/成本 | P1 |
+| FR-V-04 | **影子模式（Shadow Mode）**：新版本并行运行但不返回给用户，仅采集指标对比 | P1 |
+| FR-V-05 | **一键回滚**：灰度异常时快速回退到上一稳定版本 | P0 |
+| FR-V-06 | 版本发布审批流：高风险变更需审批后才可放量 | P1 |
+| FR-V-07 | 灰度过程监控：新版本错误率/延迟实时对比，超阈值自动回滚 | P1 |
+
 ---
 
 ## 5. 非功能需求（NFR）
@@ -400,6 +584,18 @@
 - 隐藏返回防注入校验。
 - Skill/MCP 沙箱执行。
 - 最小权限 + Prompt 注入四重防御 + 高风险操作人工确认（详见 4.13.2）。
+
+#### 5.3.1 审计与合规
+
+| 编号 | 需求 | 优先级 |
+|---|---|---|
+| FR-AUD-01 | **审计日志字段标准化**：操作者、租户、应用、会话、动作、对象、时间、结果、来源 IP、请求 ID | P0 |
+| FR-AUD-02 | 审计日志不可篡改（append-only），独立于业务库存储 | P0 |
+| FR-AUD-03 | 审计日志分级保留期：一般 180 天，关键/资金类 3 年以上 | P1 |
+| FR-AUD-04 | 敏感操作审计（密钥创建/删除、权限变更、工作流发布、数据导出） | P0 |
+| FR-AUD-05 | 数据分级分类：对 PII（个人身份信息）等敏感字段脱敏与最小可见 | P0 |
+| FR-AUD-06 | 合规对齐：满足《个人信息保护法》《数据安全法》、等保 2.0 相关要求 | P1 |
+| FR-AUD-07 | 数据导出/删除合规：支持用户数据导出与删除（被遗忘权） | P1 |
 
 ### 5.4 可观测性
 
@@ -444,6 +640,61 @@
 │        数据层 (PostgreSQL · Redis · 向量库)          │
 └─────────────────────────────────────────────────────┘
 ```
+
+### 6.1 数据模型（ERD）
+
+```mermaid
+erDiagram
+    TENANT ||--o{ MEMBER : "拥有"
+    TENANT ||--o{ APPLICATION : "拥有"
+    TENANT ||--o{ KNOWLEDGE_BASE : "拥有"
+    TENANT ||--o{ MCP_SERVER : "拥有"
+    TENANT ||--o{ SKILL : "拥有"
+    TENANT ||--o{ MODEL_CONFIG : "拥有"
+    TENANT ||--o{ API_KEY : "颁发"
+
+    APPLICATION ||--o{ AGENT : "包含"
+    APPLICATION ||--o{ WORKFLOW : "定义"
+    APPLICATION ||--o{ CONVERSATION : "承载"
+    APPLICATION }o--|| WORKFLOW : "绑定默认工作流"
+
+    AGENT }o--o{ KNOWLEDGE_BASE : "引用"
+    AGENT }o--o{ MCP_SERVER : "绑定工具"
+    AGENT }o--o{ SKILL : "调用"
+    AGENT }o--o{ MODEL_CONFIG : "使用模型"
+
+    WORKFLOW ||--o{ WORKFLOW_VERSION : "版本"
+    WORKFLOW }o--o{ AGENT : "编排"
+
+    CONVERSATION ||--o{ MESSAGE : "包含"
+    CONVERSATION ||--o{ TASK_RUN : "执行"
+    CONVERSATION ||--o{ CHECKPOINT : "状态挂载"
+
+    TASK_RUN ||--o{ TRACE_EVENT : "产生"
+    TASK_RUN }o--|| WORKFLOW_VERSION : "运行于"
+    MESSAGE ||--o{ HIDDEN_RESPONSE : "携带"
+
+    KNOWLEDGE_BASE ||--o{ DOCUMENT : "包含"
+    DOCUMENT ||--o{ CHUNK : "切分"
+```
+
+**关键实体说明：**
+
+| 实体 | 关键字段 | 基数关系说明 |
+|---|---|---|
+| `TENANT` | tenant_id, name, quota, status | 平台隔离根 |
+| `APPLICATION` | app_id, tenant_id, default_workflow_id | 业务入口，1:1 默认工作流 |
+| `AGENT` | agent_id, app_id, system_prompt, model_config_id | 可被多工作流复用（N:N） |
+| `WORKFLOW` | workflow_id, app_id, graph_definition | 编排图模板 |
+| `WORKFLOW_VERSION` | version_id, workflow_id, snapshot | 版本化，支持回滚/灰度 |
+| `CONVERSATION` | conversation_id, app_id, user_id | 运行时隔离单元 |
+| `MESSAGE` | message_id, conversation_id, role, content | 单条消息 |
+| `TASK_RUN` | run_id, conversation_id, workflow_version_id, status | 一次执行，遵循状态机 |
+| `CHECKPOINT` | thread_id(=conversation_id), version, state_blob | LangGraph 状态持久化 |
+| `HIDDEN_RESPONSE` | id, message_id, action, payload | 隐藏返回 |
+| `TRACE_EVENT` | event_id, run_id, node, latency, tokens | 可观测性 |
+
+> 注：`Agent ↔ 知识库/MCP/Skill/模型` 均为多对多，需中间关联表。`CHECKPOINT.thread_id` 与 `CONVERSATION.conversation_id` 一一对应，作为状态隔离的物理锚点。
 
 ---
 
@@ -499,7 +750,12 @@
 | 知识库 KB | 供 RAG 检索的文档/向量集合 |
 | 隐藏返回 Hidden Response | 不展示在聊天框、供前端触发操作的结构化返回 |
 | checkpoint | LangGraph 状态持久化点 |
+| 模型网关 Model Gateway | 统一的多模型接入/路由/降级/配额/计量层 |
+| 影子模式 Shadow Mode | 新版本并行运行但不返回用户，仅采集指标 |
+| 任务状态机 Task State Machine | 任务从 created 到终态的生命周期定义 |
+| 幂等键 Idempotency Key | 防重复执行/提交的唯一标识 |
+| 降级 Degrade | 主路径失败后切换到备用路径返回结果 |
 
 ---
 
-*本文档为 v1.0 草稿，待评审后进入详细设计（Detailed Design）阶段。*
+*本文档为 v1.1 草稿，已补齐企业级落地骨架，待评审后进入详细设计（Detailed Design）阶段。*
