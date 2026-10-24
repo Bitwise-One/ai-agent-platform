@@ -8,16 +8,32 @@
  */
 
 import {
+  AnimatePresence,
   animate,
   motion,
+  useAnimationControls,
   useMotionValue,
   useReducedMotion,
+  useScroll,
+  useSpring,
   useTransform,
   type Variants,
 } from "framer-motion";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { EASE, pageVariants } from "../lib/motion";
+import { IconSparkle } from "./icons";
 
 /* ------------------------------------------------------------------ 页面 */
 
@@ -298,4 +314,543 @@ export function useFlash(value: unknown): boolean {
     return () => window.clearTimeout(timer);
   }, [value]);
   return flash;
+}
+
+/* ================================================================ 点击波纹 */
+
+export interface RippleItem {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+}
+
+/**
+ * 点击波纹：按下点作为圆心向外扩散一圈半透明水膜。
+ *
+ * 为什么要做到「按下点」而不是元素中心：手指/鼠标落在哪里，反馈就该从哪里长出来，
+ * 从中心扩散会让人觉得按钮在「自己闪」而不是「被我按了」。
+ *
+ * 用法：容器上加 `relative overflow-hidden`，把 `onPointerDown={spawn}` 挂上去，
+ * 内部渲染 `<RippleLayer items={items} />`。波纹颜色取 `currentColor`，
+ * 主按钮（白字）与次按钮（深字）自动适配，不需要传色。
+ */
+export function useRipple() {
+  const [items, setItems] = useState<RippleItem[]>([]);
+  const seed = useRef(0);
+
+  const spawn = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    // 直径取长边的 2.2 倍：波纹要「漫过」整个按钮再消失，否则像个小圆点
+    const size = Math.max(rect.width, rect.height) * 2.2;
+    const item: RippleItem = {
+      id: ++seed.current,
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+      size,
+    };
+    // 只保留最近 4 个：连点时不至于堆出几十个 span
+    setItems((prev) => [...prev.slice(-3), item]);
+    window.setTimeout(() => setItems((prev) => prev.filter((one) => one.id !== item.id)), 640);
+  }, []);
+
+  return { items, spawn };
+}
+
+export function RippleLayer({ items, className }: { items: RippleItem[]; className?: string }) {
+  const reduce = useReducedMotion();
+  if (reduce) return null;
+
+  return (
+    <span
+      className={"pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] " + (className ?? "")}
+      aria-hidden="true"
+    >
+      <AnimatePresence>
+        {items.map((item) => (
+          <motion.span
+            key={item.id}
+            data-ripple={item.id}
+            className="absolute rounded-full bg-current"
+            style={{
+              left: item.x - item.size / 2,
+              top: item.y - item.size / 2,
+              width: item.size,
+              height: item.size,
+            }}
+            initial={{ scale: 0, opacity: 0.24 }}
+            animate={{ scale: 1, opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.62, ease: EASE }}
+          />
+        ))}
+      </AnimatePresence>
+    </span>
+  );
+}
+
+/* ================================================================ 加载环 */
+
+/**
+ * 加载环：一段缺口圆弧匀速旋转，比 `animate-spin` 的整圈边框更「有指向」。
+ * 常驻循环交给 CSS（内联 animation），不占 framer 的帧循环。
+ */
+export function LoadingRing({
+  size = 18,
+  thickness = 2,
+  className = "",
+}: {
+  size?: number;
+  thickness?: number;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  const center = size / 2;
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className={className}
+      style={reduce ? undefined : { animation: "lab-spin 0.85s linear infinite" }}
+      aria-hidden="true"
+    >
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={thickness}
+        opacity={0.18}
+      />
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={thickness}
+        strokeLinecap="round"
+        strokeDasharray={`${circumference * 0.32} ${circumference}`}
+        opacity={0.95}
+      />
+    </svg>
+  );
+}
+
+/* ================================================================ 错误抖动 */
+
+/**
+ * 错误抖动：横向衰减摆动，模拟「撞了一下墙」。
+ *
+ * 只在「出错了」这一件事上用它——抖动是全站最强的注意力抢夺手段之一，
+ * 用两次以上用户就会开始烦。位移控制在 7px 内，不破坏布局感知。
+ */
+export function ShakeBox({
+  trigger,
+  children,
+  className,
+}: {
+  trigger: unknown;
+  children: ReactNode;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  const controls = useAnimationControls();
+
+  useEffect(() => {
+    if (reduce) return;
+    void controls.start({
+      x: [0, -7, 6, -5, 4, -2, 0],
+      transition: { duration: 0.44, ease: "easeInOut" },
+    });
+  }, [controls, reduce, trigger]);
+
+  return (
+    <motion.div className={className} animate={controls}>
+      {children}
+    </motion.div>
+  );
+}
+
+/* ================================================================ 滚动进度 */
+
+/**
+ * 滚动进度：内容区顶部一条 2px 的进度线。
+ *
+ * 控制台用的是「内层滚动容器」而不是 window 滚动，所以必须把容器 ref 传进来
+ * （`useScroll({ container })`），否则进度永远是 0——这是最容易踩的坑。
+ */
+export function ScrollProgress({ target }: { target: RefObject<HTMLElement> }) {
+  const reduce = useReducedMotion();
+  const { scrollYProgress } = useScroll({ container: target });
+  const scaleX = useSpring(scrollYProgress, { stiffness: 180, damping: 30, mass: 0.4 });
+  const [scrollable, setScrollable] = useState(false);
+
+  /**
+   * 只在「真的能滚」时显示。
+   *
+   * 内层容器没有溢出时，滚动进度会停在 1（framer 认为已在终点），
+   * 结果就是短页面上顶一条满格进度线——像加载条卡死，比没有还糟。
+   * 所以要盯住容器与首个子元素的高度变化（表格加载完之后才可能变高）。
+   */
+  useEffect(() => {
+    const el = target.current;
+    if (!el) return;
+
+    const check = () => setScrollable(el.scrollHeight > el.clientHeight + 4);
+    check();
+
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [target]);
+
+  if (reduce || !scrollable) return null;
+
+  return (
+    <motion.div
+      data-scroll-progress="1"
+      className="pointer-events-none absolute left-0 top-0 z-30 h-[2px] w-full origin-left bg-gradient-to-r from-brand-300 via-brand-500 to-brand-400"
+      style={{ scaleX }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/* ================================================================ 空态插画 */
+
+const ART_TONE = {
+  brand: { core: "#7644A7", soft: "rgba(118,68,167,0.14)", ring: "rgba(118,68,167,0.28)" },
+  success: { core: "#389E0D", soft: "rgba(56,158,13,0.14)", ring: "rgba(56,158,13,0.28)" },
+  error: { core: "#CF1322", soft: "rgba(207,19,34,0.12)", ring: "rgba(207,19,34,0.26)" },
+} as const;
+
+/**
+ * 空态插画：虚线轨道缓慢自转 + 两颗卫星按不同周期绕行 + 中心图标悬浮。
+ *
+ * 空状态最怕「死」——一块空白加一行字，用户会怀疑是不是没加载出来。
+ * 让它保持极慢的自转，就能传达「这里是有生命的，只是在等你」。
+ * 三条轨道的周期是 9s / 14s / 22s，互质，所以几乎不会同时回到起点。
+ */
+export function EmptyArt({
+  tone = "brand",
+  size = 96,
+  className,
+}: {
+  tone?: keyof typeof ART_TONE;
+  size?: number;
+  className?: string;
+}) {
+  const palette = ART_TONE[tone];
+
+  return (
+    <div
+      className={"relative shrink-0 " + (className ?? "")}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      {/* 底光：一团会形变的柔光，给插画一点体积感 */}
+      <span
+        className="anim-blob absolute inset-[18%] rounded-full"
+        style={{ background: `radial-gradient(circle at 50% 45%, ${palette.soft}, transparent 70%)` }}
+      />
+
+      {/* 外轨道：虚线自转，是整个插画的「基频」 */}
+      <span
+        className="absolute inset-0 rounded-full border border-dashed"
+        style={{ borderColor: palette.ring, animation: "lab-spin 22s linear infinite" }}
+      />
+
+      {/* 内圈实线：反向慢转，形成视差 */}
+      <span
+        className="absolute inset-[22%] rounded-full border"
+        style={{ borderColor: palette.ring, animation: "lab-spin 14s linear infinite reverse" }}
+      />
+
+      {/* 卫星 A：容器转、点不动，看起来就是点在绕圈 */}
+      <span className="absolute inset-0" style={{ animation: "lab-spin 9s linear infinite" }}>
+        <span
+          className="absolute h-1.5 w-1.5 rounded-full"
+          style={{ left: "calc(50% - 3px)", top: -3, background: palette.core }}
+        />
+      </span>
+
+      {/* 卫星 B：相位错开 180°，半径更小 */}
+      <span className="absolute inset-[22%]" style={{ animation: "lab-spin 14s linear infinite" }}>
+        <span
+          className="absolute h-1 w-1 rounded-full"
+          style={{ left: "calc(50% - 2px)", top: -2, background: palette.core, opacity: 0.65 }}
+        />
+      </span>
+
+      {/* 中心图标：上下悬浮 2px，幅度再大就会显得轻浮 */}
+      <span
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ color: palette.core, animation: "lab-float 4.6s ease-in-out infinite" }}
+      >
+        <IconSparkle size={Math.round(size * 0.24)} />
+      </span>
+    </div>
+  );
+}
+
+/* ================================================================ 折线图 */
+
+const SPARK_TONE = {
+  brand: { line: "#7644A7", area: "#9C6BC9" },
+  success: { line: "#389E0D", area: "#73D13D" },
+  error: { line: "#CF1322", area: "#FF7875" },
+} as const;
+
+/** 用 Catmull-Rom 转三次贝塞尔：比折线柔和，又不像手绘曲线那样过冲 */
+function smoothPath(points: Array<{ x: number; y: number }>): string {
+  if (points.length === 0) return "";
+  const round = (n: number) => Math.round(n * 100) / 100;
+  if (points.length === 1) return `M ${round(points[0].x)} ${round(points[0].y)}`;
+
+  let d = `M ${round(points[0].x)} ${round(points[0].y)}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] ?? points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    const tension = 0.16;
+    const c1x = p1.x + (p2.x - p0.x) * tension;
+    const c1y = p1.y + (p2.y - p0.y) * tension;
+    const c2x = p2.x - (p3.x - p1.x) * tension;
+    const c2y = p2.y - (p3.y - p1.y) * tension;
+    d += ` C ${round(c1x)} ${round(c1y)} ${round(c2x)} ${round(c2y)} ${round(p2.x)} ${round(p2.y)}`;
+  }
+  return d;
+}
+
+/**
+ * 折线：描边自绘（pathLength 从 0 到 1），面积随描边淡入，末点最后落下。
+ *
+ * 为什么用 pathLength 而不是 clip-path 擦除：pathLength 是 SVG 原生能力，
+ * 不同长度的路径都能自动归一化，不需要按宽度算 mask 尺寸。
+ */
+export function Sparkline({
+  data,
+  height = 48,
+  width = 180,
+  tone = "brand",
+  showArea = true,
+  showDot = true,
+  delay = 0,
+  className,
+  strokeWidth = 2,
+}: {
+  data: number[];
+  height?: number;
+  width?: number;
+  tone?: keyof typeof SPARK_TONE;
+  showArea?: boolean;
+  showDot?: boolean;
+  delay?: number;
+  className?: string;
+  strokeWidth?: number;
+}) {
+  const reduce = useReducedMotion();
+  const gradientId = useId().replace(/:/g, "");
+  const palette = SPARK_TONE[tone];
+
+  const { line, area, last } = useMemo(() => {
+    if (data.length === 0) return { line: "", area: "", last: { x: 0, y: 0 } };
+    const pad = strokeWidth + 1;
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const span = max - min || 1;
+    const stepX = data.length > 1 ? (width - pad * 2) / (data.length - 1) : 0;
+
+    const points = data.map((value, index) => ({
+      x: pad + index * stepX,
+      // y 轴翻转：数值越大，屏幕坐标越小
+      y: pad + (1 - (value - min) / span) * (height - pad * 2),
+    }));
+
+    const path = smoothPath(points);
+    const tail = points[points.length - 1];
+    return {
+      line: path,
+      area: `${path} L ${tail.x} ${height} L ${points[0].x} ${height} Z`,
+      last: tail,
+    };
+  }, [data, height, strokeWidth, width]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      className={className}
+      style={{ width: "100%", height }}
+      role="img"
+      aria-label={`趋势：${data.join("、")}`}
+    >
+      <defs>
+        <linearGradient id={`spark-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={palette.area} stopOpacity={0.28} />
+          <stop offset="100%" stopColor={palette.area} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+
+      {showArea && (
+        <motion.path
+          d={area}
+          fill={`url(#spark-${gradientId})`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, ease: EASE, delay: reduce ? 0 : delay + 0.35 }}
+        />
+      )}
+
+      <motion.path
+        d={line}
+        fill="none"
+        stroke={palette.line}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        initial={reduce ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0.4 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: reduce ? 0 : 1.05, ease: EASE, delay: reduce ? 0 : delay }}
+      />
+
+      {showDot && (
+        <motion.circle
+          cx={last.x}
+          cy={last.y}
+          r={3}
+          fill="#FFFFFF"
+          stroke={palette.line}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+          initial={reduce ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.34, ease: EASE, delay: reduce ? 0 : delay + 1.0 }}
+          style={{ transformOrigin: `${last.x}px ${last.y}px` }}
+        />
+      )}
+    </svg>
+  );
+}
+
+/* ================================================================ 逐字翻入 */
+
+/**
+ * 逐字 3D 翻入：每个字绕底边向后翻 92° 再落下。
+ *
+ * 必须给父层 perspective，否则 rotateX 只是把字压扁，没有「翻」的体感。
+ * 只用于标题级文字（≤ 12 字）；正文逐字入场会拖慢阅读。
+ */
+export function SplitText({
+  text,
+  className = "",
+  delay = 0,
+  stagger = 0.045,
+  style,
+}: {
+  text: string;
+  className?: string;
+  delay?: number;
+  stagger?: number;
+  style?: CSSProperties;
+}) {
+  const reduce = useReducedMotion();
+
+  return (
+    <span className={className} style={{ display: "inline-block", perspective: 640, ...style }}>
+      {Array.from(text).map((char, index) => (
+        <motion.span
+          key={`${char}-${index}`}
+          className="inline-block"
+          style={{ transformOrigin: "50% 100%", whiteSpace: "pre" }}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, rotateX: -92, y: 14 }}
+          animate={reduce ? { opacity: 1 } : { opacity: 1, rotateX: 0, y: 0 }}
+          transition={{
+            duration: reduce ? 0.2 : 0.62,
+            ease: EASE,
+            delay: reduce ? 0 : delay + index * stagger,
+          }}
+        >
+          {char}
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
+/* ================================================================ 里程表 */
+
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+/**
+ * 里程表：每一位是一条 0–9 的竖条，改数字就是把它整体上下平移。
+ *
+ * 相比 CountUp（整个数字跳变），里程表能让眼睛看清「是哪一位在进位」——
+ * 指标卡用它，用户才会注意到「千位从 1 变成 2」这种真正重要的变化。
+ */
+export function Odometer({
+  value,
+  fontSize = 34,
+  className = "",
+  enter = false,
+}: {
+  value: number;
+  fontSize?: number;
+  className?: string;
+  /** 首次出现时从 0 滚上来（指标卡用）；列表里的数字保持从当前值开始，不要每次都重滚 */
+  enter?: boolean;
+}) {
+  const reduce = useReducedMotion();
+  const digits = String(Math.max(0, Math.round(value))).split("");
+  // 数字宽度取 0.62em：等宽数字的实际字宽就在这个附近，太宽会散
+  const cell = Math.round(fontSize * 0.62);
+
+  return (
+    <span
+      className={"inline-flex tabular " + className}
+      style={{ fontSize, lineHeight: `${fontSize}px` }}
+      aria-label={String(value)}
+    >
+      {digits.map((digit, index) => (
+        <span
+          key={`${index}-${digits.length}`}
+          className="relative inline-block overflow-hidden"
+          style={{ height: fontSize, width: cell }}
+          aria-hidden="true"
+        >
+          <motion.span
+            className="absolute left-0 top-0 flex w-full flex-col items-center"
+            initial={enter && !reduce ? { y: 0 } : false}
+            animate={{ y: -Number(digit) * fontSize }}
+            transition={
+              reduce
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 260, damping: 30, mass: 0.8 }
+            }
+          >
+            {DIGITS.map((n) => (
+              <span
+                key={n}
+                className="block w-full text-center"
+                style={{ height: fontSize, lineHeight: `${fontSize}px` }}
+              >
+                {n}
+              </span>
+            ))}
+          </motion.span>
+        </span>
+      ))}
+    </span>
+  );
 }
