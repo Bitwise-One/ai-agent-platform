@@ -73,6 +73,20 @@
 
 ---
 
+### 2.3 前端依赖与运行约定（强制）
+
+- 依赖安装/构建一律用 `pnpm`：`pnpm install` / `pnpm dev` / `pnpm typecheck` / `pnpm build`。
+- **`pnpm-lock.yaml` 必须提交**，与 `uv.lock` 同理；禁止提交 `node_modules/`、`dist/`。
+- **pnpm 配置写在 `frontend/pnpm-workspace.yaml`**。pnpm 10+ 起 `package.json` 的 `pnpm` 字段不再生效，写在那里会被静默忽略。
+- **必须保留 `nodeLinker: hoisted`**。默认的 isolated 布局依赖符号链接，在本机（Windows 普通用户）建链失败，
+  `node_modules/@types/react` 之类会变成**空目录**，表现为 `tsc` 满屏 `Cannot find type definition file`。
+  症状容易被误判为「依赖没装」，实际是布局问题。
+- **依赖的构建脚本需显式放行**：pnpm 11 默认拦截 postinstall，`esbuild` 不放行会导致 `vite` 启动即失败。
+  放行名单写在 `onlyBuiltDependencies`，新增需要编译的依赖时同步补充（这是可审计的动作，不要用 `--ignore-scripts` 绕过）。
+- 开发态端口 5173，`/api` 由 Vite 代理到 `127.0.0.1:8000`，因此后端**不需要开 CORS**，前端代码里也不出现绝对地址。
+
+---
+
 ## 3. 架构原则
 
 1. **租户隔离是硬约束**：任何跨租户的数据访问、配置读写都必须经过租户上下文校验，禁止横向越权。
@@ -154,12 +168,11 @@ ai-agent-platform/
 │   └── tests/
 ├── frontend/                 # React 管理台
 │   ├── src/
-│   │   ├── pages/            # 页面
-│   │   ├── components/       # 通用组件
-│   │   ├── features/         # 业务模块
-│   │   ├── hooks/
-│   │   ├── lib/              # 工具、API 客户端
-│   │   └── styles/           # 动效与样式
+│   │   ├── pages/            # 页面（概览 / 工作流 / Agent / 知识库 / 模型 / 调试台）
+│   │   ├── components/       # 通用组件（Shell、ui 基础件、图标）
+│   │   ├── lib/              # API 客户端、SSE 解析、hooks、类型
+│   │   ├── state/            # 全局状态（租户/应用上下文）
+│   │   └── styles.css        # 设计令牌与全局样式
 │   └── ...
 ├── deploy/                   # 部署配置
 └── .gitignore
