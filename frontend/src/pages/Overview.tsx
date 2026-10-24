@@ -12,9 +12,9 @@ import { Link } from "react-router-dom";
 
 import { agentsApi, knowledgeApi, modelsApi, workflowsApi } from "../lib/api";
 import { useAsync } from "../lib/hooks";
-import { EASE, listContainer, listItem, spring } from "../lib/motion";
+import { EASE, listContainer, listItem, riseIn, spring } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
-import { AuroraField, CountUp, Odometer, Sparkline, Stagger } from "../components/motion";
+import { AuroraField, CountUp, Odometer, popItem, Sparkline, Stagger } from "../components/motion";
 import { Card, CardHeader, ErrorNote, PageHeader, Skeleton, StatusTag, statusText, taskTone } from "../components/ui";
 import { IconArrowRight, IconBook, IconGraph } from "../components/icons";
 
@@ -34,7 +34,7 @@ function Metric({
       variants={listItem}
       whileHover={{ y: -2 }}
       transition={spring}
-      className="rounded-card border border-line-split bg-surface shadow-card"
+      className="card-sheen rounded-card border border-line-split bg-surface shadow-card"
     >
       <div className="px-6 py-5">
         <div className="text-caption text-ink-secondary">{label}</div>
@@ -212,20 +212,26 @@ export function OverviewPage() {
                   管理
                 </Link>
               </div>
-              <ul className="space-y-1.5">
+              <motion.ul
+                className="space-y-1.5"
+                variants={listContainer}
+                initial="initial"
+                animate="animate"
+              >
                 {(kbs.data ?? []).slice(0, 3).map((kb) => (
-                  <li
+                  <motion.li
                     key={kb.id}
+                    variants={popItem}
                     className="flex items-center justify-between rounded-control bg-surface-fill px-2.5 py-1.5 text-caption"
                   >
                     <span className="truncate text-ink-primary">{kb.name}</span>
                     <span className="text-ink-tertiary">{kb.vector_dim ?? "-"} 维</span>
-                  </li>
+                  </motion.li>
                 ))}
                 {(kbs.data ?? []).length === 0 && (
                   <li className="text-caption text-ink-tertiary">暂无知识库</li>
                 )}
-              </ul>
+              </motion.ul>
             </div>
 
             <div>
@@ -235,22 +241,28 @@ export function OverviewPage() {
                   管理
                 </Link>
               </div>
-              <ul className="space-y-1.5">
+              <motion.ul
+                className="space-y-1.5"
+                variants={listContainer}
+                initial="initial"
+                animate="animate"
+              >
                 {(models.data ?? []).slice(0, 3).map((model) => (
-                  <li
+                  <motion.li
                     key={model.id}
+                    variants={popItem}
                     className="flex items-center justify-between rounded-control bg-surface-fill px-2.5 py-1.5 text-caption"
                   >
                     <span className="truncate text-ink-primary">{model.name}</span>
                     <span className="font-mono text-[11px] text-ink-tertiary">
                       {model.model_name}
                     </span>
-                  </li>
+                  </motion.li>
                 ))}
                 {(models.data ?? []).length === 0 && (
                   <li className="text-caption text-ink-tertiary">暂无模型配置</li>
                 )}
-              </ul>
+              </motion.ul>
             </div>
           </div>
         </Card>
@@ -261,8 +273,8 @@ export function OverviewPage() {
       <Card className="mt-4">
         <CardHeader title="近 14 天调用趋势" description="会话、工具调用与降级次数" />
         <div className="grid grid-cols-1 gap-6 px-6 py-5 md:grid-cols-3">
-          {trends.map((item) => (
-            <div key={item.label}>
+          {trends.map((item, index) => (
+            <motion.div key={item.label} {...riseIn(0.12 + index * 0.08)}>
               <div className="flex items-baseline justify-between">
                 <span className="text-caption text-ink-secondary">{item.label}</span>
                 <span className="tabular text-body text-ink-primary">
@@ -271,7 +283,7 @@ export function OverviewPage() {
                 </span>
               </div>
               <Sparkline data={item.data} tone={item.tone} height={44} delay={0.12} className="mt-2" />
-            </div>
+            </motion.div>
           ))}
         </div>
       </Card>
