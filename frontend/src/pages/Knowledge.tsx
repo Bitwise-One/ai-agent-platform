@@ -9,10 +9,12 @@
  * 但文字仍保留数值——不依赖颜色/图形单通道传达信息。
  */
 
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { knowledgeApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
+import { EASE } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
 import {
   Button,
@@ -195,12 +197,21 @@ export function KnowledgePage() {
                         setHits(null);
                       }}
                       className={
-                        "mb-0.5 w-full rounded-control px-2.5 py-2 text-left transition-colors " +
+                        "relative mb-0.5 w-full rounded-control px-2.5 py-2 text-left transition-colors " +
                         (active
                           ? "bg-brand-50 text-brand-600"
                           : "text-ink-secondary hover:bg-surface-fill hover:text-ink-primary")
                       }
                     >
+                      {/* 选中条用 layoutId 在库之间滑动：它标的是「我在这一组里的哪一格」 */}
+                      {active && (
+                        <motion.span
+                          layoutId="kb-active-bar"
+                          data-kb-bar="1"
+                          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-brand-500"
+                          transition={{ type: "spring", stiffness: 520, damping: 40 }}
+                        />
+                      )}
                       <div className="truncate text-body">{kb.name}</div>
                       <div className="truncate text-caption text-ink-tertiary">
                         {kb.vector_dim ?? "—"} 维 · {kb.embedding_model ?? "默认向量模型"}
@@ -328,8 +339,11 @@ export function KnowledgePage() {
                   ) : (
                     <ul className="space-y-2">
                       {hits.map((hit, index) => (
-                        <li
+                        <motion.li
                           key={`${hit.document_id}-${index}`}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, ease: EASE, delay: index * 0.05 }}
                           className="rounded-control border border-line-split px-3 py-2.5"
                         >
                           <div className="mb-1 flex items-center justify-between gap-3">
@@ -341,13 +355,16 @@ export function KnowledgePage() {
                             </span>
                           </div>
                           <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-surface-fill">
-                            <div
-                              className="h-full rounded-full bg-brand-400"
-                              style={{ width: `${Math.min(100, hit.score * 100)}%` }}
+                            {/* 分数条从左侧长出来：检索结果是一次「测量」，条子该像尺子一样被划出来 */}
+                            <motion.div
+                              className="h-full w-full origin-left rounded-full bg-brand-400"
+                              initial={{ scaleX: 0 }}
+                              animate={{ scaleX: Math.min(1, hit.score) }}
+                              transition={{ duration: 0.62, ease: EASE, delay: 0.1 + index * 0.05 }}
                             />
                           </div>
                           <p className="text-body leading-6 text-ink-primary">{hit.content}</p>
-                        </li>
+                        </motion.li>
                       ))}
                     </ul>
                   )}

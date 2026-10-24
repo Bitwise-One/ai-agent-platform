@@ -29,6 +29,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { EASE } from "../lib/motion";
 import { IconAlert, IconCheck, IconClose } from "./icons";
+import { EmptyArt, LoadingRing, RippleLayer, ShakeBox, useRipple } from "./motion";
 
 /* ------------------------------------------------------------------ 按钮 */
 
@@ -70,23 +71,37 @@ export function Button({
   disabled,
   ...rest
 }: ButtonProps) {
+  // 波纹挂在按钮自己身上：全站所有按钮自动获得「按下点反馈」，不用各页单独接
+  const { items, spawn } = useRipple();
+  const { onPointerDown, ...restProps } = rest;
+  const inert = disabled || loading;
+
   return (
     <motion.button
       type="button"
       className={clsx(
         buttonBase,
+        "relative overflow-hidden",
         buttonVariants[variant],
         size === "sm" ? "h-7 px-2.5 text-caption" : "h-8 px-3.5",
         className,
       )}
-      disabled={disabled || loading}
+      disabled={inert}
       // 全站按钮统一的"按下去有实体感"：只压 3%，弹回比按下更慢一点
-      whileTap={disabled || loading ? undefined : { scale: 0.97 }}
+      whileTap={inert ? undefined : { scale: 0.97 }}
       transition={{ type: "spring", stiffness: 520, damping: 28, mass: 0.6 }}
-      {...rest}
+      onPointerDown={(event) => {
+        if (!inert) spawn(event);
+        onPointerDown?.(event);
+      }}
+      {...restProps}
     >
-      {loading ? <Spinner size={12} /> : icon}
-      {children}
+      {/* 内容层抬高一层，避免被波纹盖住颜色 */}
+      <span className="relative z-10 inline-flex items-center justify-center gap-1.5">
+        {loading ? <LoadingRing size={12} thickness={2} /> : icon}
+        {children}
+      </span>
+      <RippleLayer items={items} />
     </motion.button>
   );
 }
@@ -114,7 +129,17 @@ export function Field({
       </span>
       {children}
       {error ? (
-        <span className="mt-1 block text-caption text-[#CF1322]">{error}</span>
+        // key={error}：同一条错误再次提交也要重新抖一次，否则用户会以为「没反应」
+        <motion.span
+          key={error}
+          initial={{ opacity: 0, y: -3, x: 0 }}
+          animate={{ opacity: 1, y: 0, x: [0, -3, 3, -2, 1, 0] }}
+          transition={{ duration: 0.34, ease: EASE }}
+          className="mt-1 block text-caption text-[#CF1322]"
+          role="alert"
+        >
+          {error}
+        </motion.span>
       ) : hint ? (
         <span className="mt-1 block text-caption text-ink-tertiary">{hint}</span>
       ) : null}
@@ -305,7 +330,22 @@ export function StatusTag({
         className,
       )}
     >
-      <span className={clsx("h-1.5 w-1.5 rounded-full", dotClass[tone])} />
+      <span className="relative flex h-1.5 w-1.5 items-center justify-center">
+        {/* 点本身弹入：表格逐行出现时，状态是最后被「点亮」的那一下 */}
+        <motion.span
+          className={clsx("h-1.5 w-1.5 rounded-full", dotClass[tone])}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 520, damping: 22, mass: 0.5, delay: 0.06 }}
+        />
+        {/* info 语义是「进行中」，给一圈常驻扩散——静止的点读不出「还在跑」 */}
+        {tone === "info" && (
+          <span
+            className={clsx("anim-ping absolute inset-0 rounded-full", dotClass[tone])}
+            aria-hidden="true"
+          />
+        )}
+      </span>
       {children}
     </span>
   );
@@ -362,16 +402,20 @@ export function statusText(status: string): string {
 /* ------------------------------------------------------------------ 反馈 */
 
 export function Spinner({ size = 14 }: { size?: number }) {
+  // 缺口圆弧比整圈边框更有"指向"，同一个 LoadingRing 在按钮里也用，口径统一
   return (
-    <span
-      className="inline-block animate-spin rounded-full border-2 border-current border-t-transparent opacity-70"
-      style={{ width: size, height: size }}
-      role="status"
-      aria-label="加载中"
-    />
+    <span className="inline-flex items-center opacity-70" role="status" aria-label="加载中">
+      <LoadingRing size={size} thickness={2} />
+    </span>
   );
 }
 
+/**
+ * 空状态：插画 + 标题 + 操作。
+ *
+ * 空状态最怕「死」——一块空白加一行字，用户会怀疑是不是没加载出来。
+ * 插画里的虚线轨道一直在极慢自转，传达「这里是有生命的，只是在等你」。
+ */
 export function Empty({
   title,
   description,
@@ -384,24 +428,52 @@ export function Empty({
   compact?: boolean;
 }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.42, ease: EASE }}
       className={clsx(
         "flex flex-col items-center justify-center rounded-card border border-dashed border-line-base bg-surface text-center",
         compact ? "px-6 py-8" : "px-6 py-16",
       )}
     >
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface-fill text-ink-tertiary">
-        <IconAlert size={18} />
-      </div>
-      <p className="text-body font-medium text-ink-primary">{title}</p>
+      <EmptyArt size={compact ? 62 : 92} className="mb-3.5" />
+
+      <motion.p
+        className="text-body font-medium text-ink-primary"
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.34, ease: EASE, delay: 0.1 }}
+      >
+        {title}
+      </motion.p>
+
       {description && (
-        <p className="mt-1 max-w-md text-caption leading-6 text-ink-tertiary">{description}</p>
+        <motion.p
+          className="mt-1 max-w-md text-caption leading-6 text-ink-tertiary"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.34, ease: EASE, delay: 0.16 }}
+        >
+          {description}
+        </motion.p>
       )}
-      {action && <div className="mt-4">{action}</div>}
-    </div>
+
+      {action && (
+        <motion.div
+          className="mt-4"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.34, ease: EASE, delay: 0.22 }}
+        >
+          {action}
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 
+/** 错误条：出现时横向抖一下——抖动是全站最强的注意力手段之一，只给「出错了」用 */
 export function ErrorNote({
   message,
   onRetry,
@@ -410,27 +482,30 @@ export function ErrorNote({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-control border border-[#FFCCC7] bg-[#FFF1F0] px-3 py-2 text-body text-[#CF1322]">
-      <span className="flex items-center gap-2">
-        <IconAlert size={14} />
-        {message}
-      </span>
-      {onRetry && (
-        <Button size="sm" variant="text" onClick={onRetry}>
-          重试
-        </Button>
-      )}
-    </div>
+    <ShakeBox trigger={message}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18 }}
+        className="flex items-center justify-between gap-4 rounded-control border border-[#FFCCC7] bg-[#FFF1F0] px-3 py-2 text-body text-[#CF1322]"
+      >
+        <span className="flex items-center gap-2">
+          <IconAlert size={14} />
+          {message}
+        </span>
+        {onRetry && (
+          <Button size="sm" variant="text" onClick={onRetry}>
+            重试
+          </Button>
+        )}
+      </motion.div>
+    </ShakeBox>
   );
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={clsx("animate-pulse rounded-control bg-surface-fill", className)}
-      aria-hidden="true"
-    />
-  );
+  // 扫光而不是整块呼吸：呼吸让骨架块本身变淡变浓，扫光更像"有条数据正在流过去"
+  return <div className={clsx("sk-shimmer rounded-control", className)} aria-hidden="true" />;
 }
 
 /* ------------------------------------------------------------------ 表格 */

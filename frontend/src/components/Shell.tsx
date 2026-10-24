@@ -10,11 +10,11 @@
  */
 
 import { motion } from "framer-motion";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { useWorkspace } from "../state/workspace";
-import { BreathingDot } from "./motion";
+import { BreathingDot, ScrollProgress } from "./motion";
 import {
   IconAgent,
   IconBook,
@@ -66,6 +66,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const { tenants, apps, tenant, app, loading, selectTenant, selectApp, error } = useWorkspace();
   const health = useHealth();
   const location = useLocation();
+  // 控制台是内层滚动容器，滚动进度必须挂在它身上（window 永远不滚）
+  const mainRef = useRef<HTMLElement>(null);
 
   return (
     <div className="flex h-full min-h-screen bg-surface-layout">
@@ -106,7 +108,15 @@ export function Shell({ children }: { children: ReactNode }) {
                     transition={{ type: "spring", stiffness: 520, damping: 40 }}
                   />
                 )}
-                <Icon size={16} />
+                <motion.span
+                  className="inline-flex"
+                  // 图标微动：选中时放大 6%，悬停时再轻挑一下——导航的"被指到"感从这里来
+                  animate={active ? { scale: 1.06 } : { scale: 1 }}
+                  whileHover={{ scale: 1.12, y: -1 }}
+                  transition={{ type: "spring", stiffness: 460, damping: 26, mass: 0.6 }}
+                >
+                  <Icon size={16} />
+                </motion.span>
                 {item.label}
               </NavLink>
             );
@@ -176,7 +186,13 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </header>
 
-        <main className="scroll-slim min-h-0 flex-1 overflow-y-auto px-6 py-6">{children}</main>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {/* 滚动进度线：贴着内容区顶部，长页面里给一个「还有多少」的尺子 */}
+          <ScrollProgress target={mainRef} />
+          <main ref={mainRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto px-6 py-6">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

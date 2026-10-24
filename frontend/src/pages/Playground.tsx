@@ -18,7 +18,7 @@ import { agentsApi, chatApi, streamChat } from "../lib/api";
 import { useAsync } from "../lib/hooks";
 import { EASE, listContainer, listItem } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
-import { AuroraField, StreamCursor } from "../components/motion";
+import { AuroraField, EmptyArt, StreamCursor } from "../components/motion";
 import {
   Button,
   Card,
@@ -31,7 +31,7 @@ import {
   taskTone,
   useToast,
 } from "../components/ui";
-import { IconChat, IconClose, IconPlay } from "../components/icons";
+import { IconClose, IconPlay } from "../components/icons";
 import type { HiddenResponse, RagSource, RouteInfo } from "../lib/types";
 
 interface Turn {
@@ -295,14 +295,7 @@ export function PlaygroundPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.42, ease: EASE }}
                 >
-                  <motion.span
-                    className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600"
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 320, damping: 18, delay: 0.1 }}
-                  >
-                    <IconChat size={18} />
-                  </motion.span>
+                  <EmptyArt size={88} className="mb-3" />
                   <p className="text-body text-ink-secondary">输入一句话开始调试</p>
                   <p className="mt-1 max-w-sm text-caption text-ink-tertiary">
                     右侧会同步显示路由到了哪个 Agent、命中了哪些知识片段
@@ -344,6 +337,16 @@ export function PlaygroundPage() {
                         )}
                       </div>
                       <div className="whitespace-pre-wrap rounded-card rounded-tl-sm border border-line-split bg-surface px-3.5 py-2.5 text-body leading-7 text-ink-primary">
+                        {/* 首字还没到：先给扫光骨架，别让气泡空着（空框 + 光标像是在卡住） */}
+                        {turn.streaming && !turn.content && (
+                          <span className="flex flex-col gap-2 py-0.5">
+                            <span className="sk-shimmer block h-3 w-[78%] rounded-sm" />
+                            <span
+                              className="sk-shimmer block h-3 w-[56%] rounded-sm"
+                              style={{ animationDelay: "0.14s" }}
+                            />
+                          </span>
+                        )}
                         {turn.content}
                         {turn.streaming && <StreamCursor />}
                       </div>
@@ -526,15 +529,20 @@ export function PlaygroundPage() {
             <CardHeader title="试试这些" description="覆盖不同路由分支" />
             <div className="flex flex-wrap gap-2 px-5 py-4">
               {["你们支持七天无理由退货吗？", "退款几天能到账？", "怎么开发票？", "今天天气如何"].map(
-                (sample) => (
-                  <button
+                (sample, index) => (
+                  <motion.button
                     key={sample}
                     type="button"
                     onClick={() => setInput(sample)}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: EASE, delay: 0.06 + index * 0.05 }}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                     className="rounded-control border border-line-base px-2.5 py-1 text-caption text-ink-secondary transition-colors hover:border-brand-400 hover:text-brand-600"
                   >
                     {sample}
-                  </button>
+                  </motion.button>
                 ),
               )}
             </div>
