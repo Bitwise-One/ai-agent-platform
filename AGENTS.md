@@ -71,9 +71,37 @@
   uv run alembic check          # 模型与迁移零差异，否则说明漏了迁移
   ```
 
+### 2.3 字段中文说明（comment）约定（强制）
+
+字段的业务含义要能被 DBA / 排障的人直接看到，所以**说明写在数据库里，而不是只写在代码注释里**。
+
+- **唯一事实来源是 ORM**：`app/models/` 里每个列都写 `mapped_column(..., comment="中文说明")`。
+  迁移里的 `COMMENT ON COLUMN` 文本由元数据生成，**不要手抄一份**——`comment` 会被
+  `alembic check` 逐字比对，差一个标点就会报漂移。
+- **新增/修改字段的流程**：改 ORM（含 `comment`）→ `alembic revision` 生成迁移 →
+  在迁移里补对应的 `COMMENT ON COLUMN`（用 `op.execute`，见
+  `alembic/versions/a6ce26b3419c_add_column_comments.py`）→ PG 上 `alembic check` 零差异。
+- **SQLite 没有列注释**：`COMMENT ON COLUMN` 是 PG 语法，SQLite 既无语法也无处存。
+  迁移里必须 `if op.get_bind().dialect.name != "postgresql": return` 短路，
+  否则本地与 CI（都是 SQLite）直接报错。**注释的验收只能在 PostgreSQL 上做**。
+- 查看方式（PG）：
+
+  ```sql
+  -- 单表
+  \d+ tenant
+  -- 全库
+  SELECT c.relname, a.attname, col_description(a.attrelid, a.attnum)
+  FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+  WHERE a.attnum > 0 AND NOT a.attisdropped
+    AND col_description(a.attrelid, a.attnum) IS NOT NULL
+  ORDER BY c.relname, a.attnum;
+  ```
+
+- 说明写法要求：写「是什么 + 关键约束/枚举取值」，不要只写字段名直译（`# 状态` 属于无效说明）。
+
 ---
 
-### 2.3 前端依赖与运行约定（强制）
+### 2.4 前端依赖与运行约定（强制）
 
 - 依赖安装/构建一律用 `pnpm`：`pnpm install` / `pnpm dev` / `pnpm typecheck` / `pnpm build`。
 - **`pnpm-lock.yaml` 必须提交**，与 `uv.lock` 同理；禁止提交 `node_modules/`、`dist/`。
