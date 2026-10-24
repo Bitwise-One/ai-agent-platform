@@ -76,6 +76,29 @@ async def delete_agent(
     return ApiResponse(data={"deleted": str(agent_id)}, request_id=get_request_id(request))
 
 
+@router.get("/{agent_id}/knowledge-bases", response_model=ApiResponse[dict])
+async def get_bound_knowledge_bases(
+    app_id: uuid.UUID,
+    agent_id: uuid.UUID,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    """读取某 Agent 已绑定的知识库。
+
+    为什么需要这个接口：绑定是「覆盖式」PUT，控制台在编辑表单里必须先回显
+    当前绑定，否则用户打开编辑框会看到全未勾选，一保存就把已有绑定清空——
+    这是最容易造成数据丢失的一类交互缺陷，因此读接口不是可选项。
+    """
+    # 先校验 Agent 归属本租户（跨租户一律 404），再读绑定关系
+    await agent_service.get_agent(db, ctx.tenant_id, app_id, agent_id)
+    kb_ids = await agent_service.get_kb_ids(db, agent_id)
+    return ApiResponse(
+        data={"agent_id": str(agent_id), "kb_ids": [str(k) for k in kb_ids]},
+        request_id=get_request_id(request),
+    )
+
+
 @router.put("/{agent_id}/knowledge-bases", response_model=ApiResponse[dict])
 async def bind_knowledge_bases(
     app_id: uuid.UUID,

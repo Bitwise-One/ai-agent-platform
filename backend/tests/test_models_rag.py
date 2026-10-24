@@ -156,6 +156,13 @@ async def test_rag_context_injected_into_agent_reply(client):
     )
     assert bound.status_code == 200, bound.text
 
+    # 绑定必须可回读：控制台编辑表单靠它回显，否则一保存就清空已有绑定
+    echo = await client.get(
+        f"/api/v1/apps/{app_id}/agents/{agent_id}/knowledge-bases", headers=headers
+    )
+    assert echo.status_code == 200, echo.text
+    assert echo.json()["data"]["kb_ids"] == [kb_id]
+
     # 3) 对话：应触发检索，且模型上下文包含知识片段
     resp = await client.post(
         f"/api/v1/apps/{app_id}/chat",
