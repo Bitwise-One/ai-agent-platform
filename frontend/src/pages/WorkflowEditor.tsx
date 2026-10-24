@@ -17,14 +17,14 @@
  * 把问题在画布上指出来，而不是等后端返回 422 让用户猜。
  */
 
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { agentsApi, workflowsApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
-import { EASE, softSpring } from "../lib/motion";
-import { DropletSplash, AuroraField } from "../components/motion";
+import { EASE, listContainer, softSpring } from "../lib/motion";
+import { DropletSplash, AuroraField, FadeSwap, Reveal, riseItem } from "../components/motion";
 import { useWorkspace } from "../state/workspace";
 import {
   Button,
@@ -497,9 +497,12 @@ export function WorkflowEditorPage() {
               </Select>
             </div>
             <div className="text-caption text-ink-tertiary">
-              {linkingFrom
-                ? "连线中：点击目标节点完成，点空白处取消"
-                : "拖动节点可移动 · 点节点右侧圆点开始连线"}
+              {/* 连线提示随状态淡入淡出：原地换字会「跳」，淡出淡入把「进入连线态」变得可感知 */}
+              <FadeSwap id={linkingFrom ?? "idle"}>
+                {linkingFrom
+                  ? "连线中：点击目标节点完成，点空白处取消"
+                  : "拖动节点可移动 · 点节点右侧圆点开始连线"}
+              </FadeSwap>
             </div>
           </div>
 
@@ -770,7 +773,8 @@ export function WorkflowEditorPage() {
                 />
               </div>
 
-              {graph.rag_enabled && (
+              {/* 检索片段数随开关展开/收起：直接条件渲染会「闪」，高度动画把显隐变成过程 */}
+              <Reveal show={graph.rag_enabled}>
                 <Field label="检索片段数" hint="注入上下文的片段条数">
                   <Input
                     type="number"
@@ -780,7 +784,7 @@ export function WorkflowEditorPage() {
                     onChange={(e) => update({ rag_top_k: Number(e.target.value) })}
                   />
                 </Field>
-              )}
+              </Reveal>
             </div>
           </Card>
 
@@ -801,10 +805,16 @@ export function WorkflowEditorPage() {
               {issues.length === 0 ? (
                 <p className="text-caption text-ink-tertiary">结构与连通性检查通过</p>
               ) : (
-                <ul className="space-y-1.5">
+                <motion.ul
+                  className="space-y-1.5"
+                  variants={listContainer}
+                  initial="initial"
+                  animate="animate"
+                >
                   {issues.map((issue) => (
-                    <li
+                    <motion.li
                       key={issue.message}
+                      variants={riseItem}
                       className={
                         "flex items-start gap-1.5 text-caption " +
                         (issue.level === "error" ? "text-[#CF1322]" : "text-[#D48806]")
@@ -812,77 +822,96 @@ export function WorkflowEditorPage() {
                     >
                       <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-current" />
                       {issue.message}
-                    </li>
+                    </motion.li>
                   ))}
-                </ul>
+                </motion.ul>
               )}
             </div>
           </Card>
 
-          {selected && (
-            <Card>
-              <CardHeader
-                title="节点"
-                extra={
-                  <button
-                    type="button"
-                    onClick={() => removeNode(selected.id)}
-                    className="flex items-center gap-1 text-caption text-[#CF1322] hover:underline"
-                  >
-                    <IconTrash size={12} /> 删除
-                  </button>
-                }
-              />
-              <div className="space-y-3 px-4 py-4">
-                <Field label="显示名称">
-                  <Input
-                    value={selected.label}
-                    onChange={(e) =>
-                      update({
-                        nodes: graph.nodes.map((n) =>
-                          n.id === selected.id ? { ...n, label: e.target.value } : n,
-                        ),
-                      })
+          {/* 检查器：选中/切换节点时整块高度展开，取消选中时收起后卸载——
+              直接条件渲染会「闪进闪出」，侧边栏的高度是连续的，动画刚好把连续性画出来 */}
+          <AnimatePresence initial={false}>
+            {selected && (
+              <motion.div
+                key={selected.id}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.26, ease: EASE }}
+                className="overflow-hidden"
+              >
+                <Card>
+                  <CardHeader
+                    title="节点"
+                    extra={
+                      <button
+                        type="button"
+                        onClick={() => removeNode(selected.id)}
+                        className="flex items-center gap-1 text-caption text-[#CF1322] hover:underline"
+                      >
+                        <IconTrash size={12} /> 删除
+                      </button>
                     }
                   />
-                </Field>
-                <div className="text-caption text-ink-tertiary">
-                  类型：{selected.type} · 坐标：{selected.position.x}, {selected.position.y}
-                </div>
-                {graph.edges.filter((e) => e.source === selected.id || e.target === selected.id)
-                  .length > 0 && (
-                  <div>
-                    <div className="mb-1.5 text-caption text-ink-secondary">连线</div>
-                    <ul className="space-y-1">
-                      {graph.edges
-                        .filter((e) => e.source === selected.id)
-                        .map((edge) => {
-                          const target = graph.nodes.find((n) => n.id === edge.target);
-                          return (
-                            <li
-                              key={`out-${edge.target}`}
-                              className="flex items-center justify-between rounded-control bg-surface-fill px-2 py-1 text-caption"
-                            >
-                              <span className="truncate text-ink-secondary">
-                                → {target?.label ?? edge.target}
-                              </span>
-                              <button
-                                type="button"
-                                aria-label="删除连线"
-                                onClick={() => removeEdge(edge.source, edge.target)}
-                                className="text-ink-tertiary hover:text-[#CF1322]"
-                              >
-                                <IconClose size={12} />
-                              </button>
-                            </li>
-                          );
-                        })}
-                    </ul>
+                  <div className="space-y-3 px-4 py-4">
+                    <Field label="显示名称">
+                      <Input
+                        value={selected.label}
+                        onChange={(e) =>
+                          update({
+                            nodes: graph.nodes.map((n) =>
+                              n.id === selected.id ? { ...n, label: e.target.value } : n,
+                            ),
+                          })
+                        }
+                      />
+                    </Field>
+                    <div className="text-caption text-ink-tertiary">
+                      类型：{selected.type} · 坐标：{selected.position.x}, {selected.position.y}
+                    </div>
+                    {graph.edges.filter((e) => e.source === selected.id || e.target === selected.id)
+                      .length > 0 && (
+                      <div>
+                        <div className="mb-1.5 text-caption text-ink-secondary">连线</div>
+                        <motion.ul
+                          className="space-y-1"
+                          variants={listContainer}
+                          initial="initial"
+                          animate="animate"
+                        >
+                          {graph.edges
+                            .filter((e) => e.source === selected.id)
+                            .map((edge) => {
+                              const target = graph.nodes.find((n) => n.id === edge.target);
+                              return (
+                                <motion.li
+                                  key={`out-${edge.target}`}
+                                  variants={riseItem}
+                                  className="flex items-center justify-between rounded-control bg-surface-fill px-2 py-1 text-caption"
+                                >
+                                  <span className="truncate text-ink-secondary">
+                                    → {target?.label ?? edge.target}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    aria-label="删除连线"
+                                    onClick={() => removeEdge(edge.source, edge.target)}
+                                    className="text-ink-tertiary hover:text-[#CF1322]"
+                                  >
+                                    <IconClose size={12} />
+                                  </button>
+                                </motion.li>
+                              );
+                            })}
+                        </motion.ul>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </Card>
-          )}
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <Card>
             <CardHeader
@@ -899,10 +928,16 @@ export function WorkflowEditorPage() {
                   还没有版本。保存编排后点「发布版本」生成首个快照。
                 </p>
               ) : (
-                <ul className="space-y-1.5">
+                <motion.ul
+                  className="space-y-1.5"
+                  variants={listContainer}
+                  initial="initial"
+                  animate="animate"
+                >
                   {(versions.data ?? []).map((version) => (
-                    <li
+                    <motion.li
                       key={version.id}
+                      variants={riseItem}
                       className="flex items-center justify-between rounded-control bg-surface-fill px-2.5 py-1.5"
                     >
                       <div className="min-w-0">
@@ -925,9 +960,9 @@ export function WorkflowEditorPage() {
                           回滚
                         </Button>
                       )}
-                    </li>
+                    </motion.li>
                   ))}
-                </ul>
+                </motion.ul>
               )}
             </div>
           </Card>
