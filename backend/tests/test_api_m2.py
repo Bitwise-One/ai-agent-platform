@@ -217,6 +217,11 @@ async def test_chat_stream_emits_sse_events(client):
     assert "event: token" in body
     assert "event: done" in body
     assert '"status"' in body
+    # 路由事件是管理台「可视化为什么走这条路径」的数据来源：
+    # 发射器若只在 Agent 节点内生效，route/prepare 的事件会被静默丢弃，
+    # 前端就只剩 token 可看，因此这里显式断言它存在。
+    assert "event: route" in body
+    assert '"strategy"' in body
 
 
 @pytest.mark.asyncio

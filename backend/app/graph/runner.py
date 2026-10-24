@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from app.core.config import get_settings
 from app.graph.builder import AgentRunner, EventEmitter, RagRetriever, build_graph
+from app.graph.emitter import reset_emitter, set_emitter
 from app.graph.routing.base import LLMClassifier
 from app.graph.spec import WorkflowSpec
 from app.graph.state import AgentState, initial_state
@@ -88,11 +89,21 @@ async def run_workflow(
     )
 
     try:
-        # recursion_limit 比业务轮次略大，留出 prepare/route/guard 等控制节点的开销
-        final: AgentState = await asyncio.wait_for(
-            graph.ainvoke(state, config={"recursion_limit": limit * 2 + 10}),
-            timeout=timeout,
-        )
+        # recursion_limit 比业务轮次略大，留出 prepare/route/guard 等控制节点的开销。
+        #
+        # 发射器必须在整图范围内生效，而不只是 Agent 节点内：`emit()` 读的是
+        # ContextVar，此前只有 `run_agent` 设置了它，导致 prepare/route/rag/guard
+        # 推的事件被静默丢弃——SSE 里只能看到 token，看不到「为什么走这条路径」。
+        # 管理台的路由可视化正是依赖 route / rag 事件，因此在这里统一设置。
+        emitter_token = set_emitter(emitter) if emitter is not None else None
+        try:
+            final: AgentState = await asyncio.wait_for(
+                graph.ainvoke(state, config={"recursion_limit": limit * 2 + 10}),
+                timeout=timeout,
+            )
+        finally:
+            if emitter_token is not None:
+                reset_emitter(emitter_token)
     except TimeoutError:
         return RunResult(
             status=TaskStatus.TIMED_OUT,
