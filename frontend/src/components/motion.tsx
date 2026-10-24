@@ -88,14 +88,17 @@ export function CountUp({
  *
  * 只做「空状态 / 页头」的底纹，不铺满数据区——深色渐层会吃掉表格的可读性，
  * 这也是企业后台最容易翻车的地方。透明度压在 0.5 以下。
+ *
+ * 漂移交给 CSS（.anim-drift）：常驻循环跑在合成线程上，主线程再忙也不掉帧；
+ * 三团的 duration 与负 delay 各不相同，看起来像互不相干的光在慢慢挪。
  */
 export function AuroraField({ className = "" }: { className?: string }) {
   const reduce = useReducedMotion();
   const blobs = useMemo(
     () => [
-      { size: 420, color: "rgba(118,68,167,0.20)", x: "-12%", y: "-30%", dur: 22 },
-      { size: 360, color: "rgba(94,124,224,0.16)", x: "58%", y: "-10%", dur: 26 },
-      { size: 300, color: "rgba(180,120,220,0.14)", x: "25%", y: "45%", dur: 19 },
+      { size: 420, color: "rgba(118,68,167,0.20)", x: "-12%", y: "-30%", dur: 22, delay: 0 },
+      { size: 360, color: "rgba(94,124,224,0.16)", x: "58%", y: "-10%", dur: 26, delay: -8 },
+      { size: 300, color: "rgba(180,120,220,0.14)", x: "25%", y: "45%", dur: 19, delay: -14 },
     ],
     [],
   );
@@ -103,26 +106,20 @@ export function AuroraField({ className = "" }: { className?: string }) {
   return (
     <div className={"pointer-events-none absolute inset-0 overflow-hidden " + className} aria-hidden="true">
       {blobs.map((blob, index) => (
-        <motion.span
+        <span
           key={index}
-          className="absolute rounded-full blur-2xl"
+          // 不用 blur 滤镜：radial-gradient 本身边缘就是渐隐的，
+          // 再叠一层 filter:blur 会让"滤镜层 + 位移动画"在部分渲染路径下露出硬边方框。
+          className={"absolute rounded-full " + (reduce ? "" : "anim-drift")}
           style={{
             width: blob.size,
             height: blob.size,
             left: blob.x,
             top: blob.y,
-            background: `radial-gradient(circle at 50% 50%, ${blob.color}, transparent 70%)`,
+            background: `radial-gradient(circle at 50% 50%, ${blob.color}, transparent 68%)`,
+            animationDuration: `${blob.dur}s`,
+            animationDelay: `${blob.delay}s`,
           }}
-          animate={
-            reduce
-              ? undefined
-              : {
-                  x: [0, 26, -18, 0],
-                  y: [0, -22, 14, 0],
-                  scale: [1, 1.08, 0.97, 1],
-                }
-          }
-          transition={{ duration: blob.dur, repeat: Infinity, ease: "easeInOut" }}
         />
       ))}
     </div>

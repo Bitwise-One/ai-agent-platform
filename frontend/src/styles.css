@@ -70,4 +70,103 @@
       transition-duration: 0.01ms !important;
     }
   }
+
+  /* ============================================================
+     常驻循环动画：交给合成线程
+     这些是"永远在动"的背景类动效（极光漂移、液滴形变、边框流光）。
+     用 CSS 而不是 JS 驱动，三个理由：
+     1. transform/border-radius 的 CSS 动画可以跑在合成线程，主线程忙时不掉帧；
+     2. 无限循环不占用 framer 的帧循环，页面里同时有十几个交互动画也不打架；
+     3. 减少动态效果时由上面那条媒体查询统一降级，不必每个组件各写一遍分支。
+     ============================================================ */
+
+  .anim-drift {
+    animation: lab-drift 22s ease-in-out infinite;
+  }
+
+  .anim-blob {
+    animation: lab-blob 7.5s ease-in-out infinite;
+  }
+
+  .anim-spin-slow {
+    animation: lab-spin 6s linear infinite;
+  }
+
+  .anim-wave {
+    animation: lab-wave 1.15s ease-in-out infinite;
+  }
+
+  .anim-bob {
+    animation: lab-bob 1.6s ease-in-out infinite;
+  }
 }
+
+@keyframes lab-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(26px, -22px, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-18px, 14px, 0) scale(0.97);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* 液滴：四段不规则圆角 + 同步自转，看起来像在"呼吸"而不是在"转圈" */
+@keyframes lab-blob {
+  0% {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    border-radius: 58% 42% 38% 62% / 55% 39% 61% 45%;
+    transform: rotate(90deg) scale(1.06);
+  }
+  50% {
+    border-radius: 63% 37% 55% 45% / 38% 57% 43% 62%;
+    transform: rotate(180deg) scale(0.97);
+  }
+  75% {
+    border-radius: 45% 55% 62% 38% / 50% 41% 59% 50%;
+    transform: rotate(270deg) scale(1.05);
+  }
+  100% {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes lab-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 声纹：每个柱子的 delay 错开，形成从左到右的波 */
+@keyframes lab-wave {
+  0%,
+  100% {
+    transform: scaleY(0.22);
+  }
+  35% {
+    transform: scaleY(1);
+  }
+  70% {
+    transform: scaleY(0.45);
+  }
+}
+
+@keyframes lab-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
