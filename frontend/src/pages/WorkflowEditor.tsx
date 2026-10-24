@@ -17,11 +17,14 @@
  * 把问题在画布上指出来，而不是等后端返回 422 让用户猜。
  */
 
+import { motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { agentsApi, workflowsApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
+import { EASE, softSpring } from "../lib/motion";
+import { DropletSplash, AuroraField } from "../components/motion";
 import { useWorkspace } from "../state/workspace";
 import {
   Button,
@@ -109,6 +112,32 @@ function edgePath(from: GraphNode, to: GraphNode): string {
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
 
+/**
+ * 把同一条贝塞尔离散成采样点。
+ *
+ * 为什么不用 SVG 的 animateMotion：它只能挂 `<animateMotion>` 子元素，
+ * 拿不到 framer 的编排（延迟、缓动、与其它动画同步）。
+ * 采样成 26 个点后，`motion.circle` 的 cx/cy 走关键帧，效果一样且可控。
+ */
+function edgeSamples(from: GraphNode, to: GraphNode, steps = 26): { cx: number[]; cy: number[] } {
+  const x1 = from.position.x + NODE_W;
+  const y1 = from.position.y + NODE_H / 2;
+  const x2 = to.position.x;
+  const y2 = to.position.y + NODE_H / 2;
+  const dx = Math.max(48, Math.abs(x2 - x1) * 0.45);
+  const cx: number[] = [];
+  const cy: number[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const mt = 1 - t;
+    cx.push(
+      mt ** 3 * x1 + 3 * mt ** 2 * t * (x1 + dx) + 3 * mt * t ** 2 * (x2 - dx) + t ** 3 * x2,
+    );
+    cy.push(mt ** 3 * y1 + 3 * mt ** 2 * t * y1 + 3 * mt * t ** 2 * y2 + t ** 3 * y2);
+  }
+  return { cx, cy };
+}
+
 export function WorkflowEditorPage() {
   const { wfId = "" } = useParams();
   const { app } = useWorkspace();
@@ -116,6 +145,8 @@ export function WorkflowEditorPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const { pending, run } = useSubmit();
+  // SVG 属性动画不受 MotionConfig 的 reducedMotion 管辖，这里单独判断
+  const reduceMotion = useReducedMotion();
 
   const flows = useAsync(() => workflowsApi.list(appId), [appId], { enabled: Boolean(appId) });
   const flow = (flows.data ?? []).find((f) => f.id === wfId) ?? null;
@@ -143,6 +174,52 @@ export function WorkflowEditorPage() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+
+  /**
+   * 水滴反馈：只在「发生了一件事」的时刻出现（新建节点 / 连线成功 / 发布版本）。
+   * 一次只留一个，新的直接顶掉旧的——避免连环操作时画布上堆满特效。
+   */
+  const [splash, setSplash] = useState<{
+    x: number;
+    y: number;
+    key: number;
+    tone: "brand" | "success";
+  } | null>(null);
+
+  const fireSplash = (x: number, y: number, tone: "brand" | "success" = "brand") => {
+    setSplash({ x, y, key: Date.now(), tone });
+  };
+
+  /**
+   * 「数据流」：每自增一次，就沿每条边重放一轮光点。
+   * 这比单纯弹个 toast 更有信息量——它直观说明「请求会这样流过去」。
+   *
+   * 为什么用自增的 key 而不是常驻循环动画：常驻循环会让人误以为画布在跑流量，
+   * 而这里要表达的是「刚才那一下会发生什么」。放完就归零、卸载。
+   */
+  const [pulse, setPulse] = useState(0);
+  const flowTimer = useRef<number | null>(null);
+
+  const playFlow = useCallback(() => {
+    setPulse((n) => n + 1);
+    if (flowTimer.current) window.clearTimeout(flowTimer.current);
+    flowTimer.current = window.setTimeout(() => setPulse(0), 2400);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (flowTimer.current) window.clearTimeout(flowTimer.current);
+    },
+    [],
+  );
+
+  // 首次进入画布时放一遍数据流：不用点任何按钮，也能一眼看懂「谁会流向谁」
+  const introRef = useRef(false);
+  useEffect(() => {
+    if (!graph || introRef.current || graph.edges.length === 0) return;
+    introRef.current = true;
+    playFlow();
+  }, [graph, playFlow]);
 
   const issues = useMemo(
     () => (graph ? validate(graph, agents.data ?? []) : []),
@@ -210,6 +287,7 @@ export function WorkflowEditorPage() {
       position: { x: 400, y: 80 + index * 140 },
     };
     update({ nodes: [...graph.nodes, node] });
+    fireSplash(node.position.x + NODE_W / 2, node.position.y + NODE_H / 2);
   };
 
   const addRouterNode = () => {
@@ -224,6 +302,7 @@ export function WorkflowEditorPage() {
         { id: "router", type: "router", label: "智能路由", position: { x: 80, y: 220 } },
       ],
     });
+    fireSplash(80 + NODE_W / 2, 220 + NODE_H / 2);
   };
 
   const completeLink = (targetId: string) => {
@@ -243,6 +322,12 @@ export function WorkflowEditorPage() {
     update({
       edges: [...graph.edges, { source: linkingFrom, target: targetId, label: target?.label }],
     });
+    if (target) {
+      // 连线成功的落点给在「目标节点」上：水花在哪里，注意力就落在哪里
+      fireSplash(target.position.x + NODE_W / 2, target.position.y + NODE_H / 2);
+    }
+    // 刚连好的这条边走一遍光点，等于当场演示一次「请求会怎么流」
+    playFlow();
     setLinkingFrom(null);
   };
 
@@ -291,6 +376,10 @@ export function WorkflowEditorPage() {
       const version = await workflowsApi.createVersion(appId, wfId, changelog);
       await workflowsApi.release(appId, wfId, version.id);
       toast.push(`已发布 v${version.version}`);
+      // 发布是整条链路里最重的动作，水花给在画布中央而不是按钮上
+      fireSplash(CANVAS_W / 2, CANVAS_H / 2, "success");
+      // 紧跟着走一遍数据流：先「落下」，再「流过去」，两拍比一拍更有分量
+      playFlow();
       await versions.reload();
       await flows.reload();
     } catch (err) {
@@ -451,19 +540,59 @@ export function WorkflowEditorPage() {
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#B995DC" />
                   </marker>
                 </defs>
-                {graph.edges.map((edge) => {
+                {graph.edges.map((edge, index) => {
                   const from = graph.nodes.find((n) => n.id === edge.source);
                   const to = graph.nodes.find((n) => n.id === edge.target);
                   if (!from || !to) return null;
+                  // 光点只在 playFlow 之后的一小段时间里存在；拖动节点时不会反复重播
+                  const track = pulse > 0 && !reduceMotion ? edgeSamples(from, to) : null;
+                  const startDelay = 0.12 + index * 0.1;
                   return (
-                    <path
-                      key={`${edge.source}-${edge.target}`}
-                      d={edgePath(from, to)}
-                      fill="none"
-                      stroke="#B995DC"
-                      strokeWidth={1.5}
-                      markerEnd="url(#arrow)"
-                    />
+                    <g key={`${edge.source}-${edge.target}`}>
+                      <motion.path
+                        d={edgePath(from, to)}
+                        fill="none"
+                        stroke="#B995DC"
+                        strokeWidth={1.5}
+                        markerEnd="url(#arrow)"
+                        // 连线「画出来」而不是突然出现：路径自身生长，顺序感更强
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 0.42, ease: EASE, delay: 0.06 * index }}
+                      />
+
+                      {track && (
+                        <>
+                          {/* 光晕：让细线在浅底上也能看清「有什么东西过去了」 */}
+                          <motion.circle
+                            r={7}
+                            fill="#7644A7"
+                            initial={{ opacity: 0, cx: track.cx[0], cy: track.cy[0] }}
+                            animate={{
+                              cx: track.cx,
+                              cy: track.cy,
+                              opacity: [0, 0.18, 0.18, 0],
+                            }}
+                            transition={{
+                              duration: 1.15,
+                              ease: "linear",
+                              delay: startDelay,
+                            }}
+                          />
+                          <motion.circle
+                            r={3}
+                            fill="#7644A7"
+                            initial={{ opacity: 0, cx: track.cx[0], cy: track.cy[0] }}
+                            animate={{ cx: track.cx, cy: track.cy, opacity: [0, 1, 1, 0] }}
+                            transition={{
+                              duration: 1.15,
+                              ease: "linear",
+                              delay: startDelay,
+                            }}
+                          />
+                        </>
+                      )}
+                    </g>
                   );
                 })}
               </svg>
@@ -473,7 +602,7 @@ export function WorkflowEditorPage() {
                 const isSelected = node.id === selectedId;
                 const isLinkTarget = linkingFrom && linkingFrom !== node.id;
                 return (
-                  <div
+                  <motion.div
                     key={node.id}
                     role="button"
                     tabIndex={0}
@@ -483,6 +612,11 @@ export function WorkflowEditorPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setSelectedId(node.id);
                     }}
+                    initial={{ opacity: 0, scale: 0.94, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    whileHover={{ scale: 1.012 }}
+                    whileTap={{ scale: 0.994 }}
+                    transition={softSpring}
                     className={
                       "absolute cursor-grab select-none rounded-card border bg-white shadow-card transition-shadow active:cursor-grabbing " +
                       (isSelected
@@ -532,18 +666,36 @@ export function WorkflowEditorPage() {
                         (linkingFrom === node.id ? "bg-brand-600" : "bg-brand-300")
                       }
                     />
-                  </div>
+                  </motion.div>
                 );
               })}
 
+              {/* 一次性的液体反馈：key 变了就重放，画完自己消失 */}
+              {splash && (
+                <DropletSplash
+                  key={splash.key}
+                  x={splash.x}
+                  y={splash.y}
+                  tone={splash.tone}
+                  onDone={() => setSplash(null)}
+                />
+              )}
+
               {graph.nodes.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="max-w-sm text-center">
+                <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                  {/* 空画布是唯一可以「放松」的地方：给一层缓慢流动的极光，避免死白 */}
+                  <AuroraField className="opacity-90" />
+                  <motion.div
+                    className="relative max-w-sm text-center"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: EASE }}
+                  >
                     <p className="text-body text-ink-secondary">画布是空的</p>
                     <p className="mt-1 text-caption text-ink-tertiary">
                       先添加「路由节点」，再把 Agent 拖进来并连线
                     </p>
-                  </div>
+                  </motion.div>
                 </div>
               )}
             </div>
