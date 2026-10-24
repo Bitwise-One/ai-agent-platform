@@ -95,10 +95,6 @@
   .anim-wave {
     animation: lab-wave 1.15s ease-in-out infinite;
   }
-
-  .anim-bob {
-    animation: lab-bob 1.6s ease-in-out infinite;
-  }
 }
 
 @keyframes lab-drift {
@@ -157,16 +153,6 @@
   }
   70% {
     transform: scaleY(0.45);
-  }
-}
-
-@keyframes lab-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(5px);
   }
 }
 

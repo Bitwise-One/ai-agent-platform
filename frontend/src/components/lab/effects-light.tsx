@@ -186,10 +186,10 @@ export function ShimmerBorder() {
 /* ---------------------------------------------------------------- 滚动景深 */
 
 const DEPTH_ROWS = [
-  { title: "会话摘要", meta: "conversation · 1.2k", opacity: 0.34 },
-  { title: "知识库检索片段", meta: "rag · top_k=4", opacity: 0.52 },
-  { title: "Agent 执行轨迹", meta: "trace · 12 步", opacity: 0.72 },
-  { title: "意图识别结果", meta: "route · rule", opacity: 0.88 },
+  { title: "会话摘要", meta: "conversation · 1.2k", opacity: 0.46 },
+  { title: "知识库检索片段", meta: "rag · top_k=4", opacity: 0.62 },
+  { title: "Agent 执行轨迹", meta: "trace · 12 步", opacity: 0.78 },
+  { title: "意图识别结果", meta: "route · rule", opacity: 0.9 },
   { title: "人工介入记录", meta: "hitl · 1", opacity: 1 },
 ];
 
@@ -212,7 +212,7 @@ export function ScrollDepth() {
   const ys = [y0, y1, y2, y3, y4];
   // 上下渐隐遮罩：位移会让行贴着容器边缘走，没有遮罩就是"被刀切了一半"
   const fade =
-    "linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%)";
+    "linear-gradient(to bottom, transparent 0%, #000 11%, #000 89%, transparent 100%)";
 
   return (
     <div className="relative h-full w-full">
@@ -245,11 +245,8 @@ export function ScrollDepth() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute bottom-1.5 left-0 right-0 flex justify-center">
-        <span className="anim-bob rounded-full bg-surface/80 px-2 py-0.5 text-[10px] text-ink-tertiary">
-          滚动我 ↓
-        </span>
-      </div>
+      {/* 不再额外放"滚动我"徽标：它会压住首行的元信息，
+          而卡片说明里已经写清楚这是滚动驱动的景深 */}
     </div>
   );
 }
