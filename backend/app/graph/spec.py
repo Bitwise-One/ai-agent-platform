@@ -126,15 +126,25 @@ class WorkflowSpec:
 
         names = model_names or {}
         default_from_def = definition.get("default_agent")
+        if not default_from_def:
+            # 图里没指定默认 Agent 时，认 Agent 表里的 is_default，
+            # 而不是退化成「列表第一个」——后者取决于查询顺序，用户看不出规律。
+            db_default = next((a for a in agents if a.is_default), None)
+            default_from_def = str(db_default.id) if db_default else None
         keyword_map = definition.get("keywords") or {}
         specs: list[AgentSpec] = []
         for agent in agents:
             model_name = names.get(str(agent.model_config_id)) if agent.model_config_id else None
+            # 关键词取「图定义里的覆盖值 > Agent 表里的配置」。
+            # 早期实现只读图定义，而前端编排画布并不维护这份 map，
+            # 结果所有 Agent 的关键词都是空 -> 规则路由永不命中，任何输入都落到默认 Agent。
+            # 关键词本质是 Agent 的属性（Agent 列表里可编辑），图里只应作可选覆盖。
+            keywords = list(keyword_map.get(str(agent.id), [])) or list(agent.keywords or [])
             specs.append(
                 AgentSpec(
                     id=str(agent.id),
                     name=agent.name,
-                    keywords=list(keyword_map.get(str(agent.id), [])),
+                    keywords=keywords,
                     prompt=agent.system_prompt or "",
                     is_default=str(agent.id) == default_from_def,
                     model=model_name,
