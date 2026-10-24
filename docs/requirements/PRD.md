@@ -2,7 +2,7 @@
 
 | 项目名称 | 通用智能体平台（General-Purpose Agent Platform） |
 |---|---|
-| 文档版本 | v1.1 |
+| 文档版本 | v1.2 |
 | 文档状态 | 草稿（待评审） |
 | 创建日期 | 2026-10-24 |
 | 技术栈 | Python + LangGraph + FastAPI / React 18 + TypeScript |
@@ -99,7 +99,7 @@
 
 **核心约束：**
 
-- 每个请求必须同时携带 `tenant_id`、`app_id`、`conversation_id`（或 `user_id`）上下文，缺一不可。
+- 每个请求必须具备 `tenant_id`、`app_id` 及 `conversation_id` / `user_id` 上下文；其中 `tenant_id` 必须由已验证的 API Key/JWT/平台会话解析并与资源归属校验，禁止信任调用方单独提交的 `tenant_id`。创建会话时允许缺少 `conversation_id`，由服务端生成。
 - LangGraph 的 checkpoint（工作流运行时状态）以**会话**为单位持久化，保证同一会话内多轮上下文连续，不同会话之间状态完全隔离、互不可见。
 - 同一 `user_id` 可拥有多个 `conversation_id`（多会话并行），彼此状态独立。
 - 跨租户、跨应用、跨会话的访问一律在网关/中间件层被拒绝。
@@ -170,10 +170,10 @@ created ──▶ running ──▶ (waiting_human) ──▶ ...
 | `waiting_human` | 等待人工介入确认/输入 | `running`（继续）、`cancelled` |
 | `completed` | 正常完成（终态） | — |
 | `degraded` | 降级完成（如主模型失败走规则/小模型）（终态） | — |
-| `failed` | 执行失败（终态） | — |
-| `timed_out` | 超时终止（终态） | — |
+| `failed` | 执行失败，且无法安全降级或转人工（终态） | — |
+| `timed_out` | 超时终止；按策略归类为失败或转人工（终态） | — |
 | `cancelled` | 人工/主动取消（终态） | — |
-| `escalated` | 升级转人工（终态） | — |
+| `escalated` | 升级转人工，等待平台外部人工流程接管（终态） | — |
 
 **状态机约束：**
 
@@ -181,6 +181,7 @@ created ──▶ running ──▶ (waiting_human) ──▶ ...
 - 进入 `waiting_human` 必须带超时，超时后自动流转（如 `escalated` 或 `timed_out`）。
 - 任何非终态任务在进程崩溃/重启后，可通过 checkpoint 恢复并继续。
 - 终态不可逆；如需重试，创建新 run 而非原地改状态。
+- 对外结果分类为 `completed`、`degraded`、`escalated` 三类；`failed`、`timed_out`、`cancelled` 是执行记录中的运维终态，必须同时记录最终对外处置结果，避免调用方只按 HTTP 错误判断任务是否收敛。
 
 ### 4.4 Agent 管理
 
@@ -245,7 +246,7 @@ created ──▶ running ──▶ (waiting_human) ──▶ ...
 | 编号 | 需求 | 优先级 |
 |---|---|---|
 | FR-M-01 | 管理 MCP Server 连接（增删改查、启停） | P0 |
-| FR-M-02 | 支持 stdio / SSE / HTTP 等多种 MCP 传输方式 | P0 |
+| FR-M-02 | 支持 stdio / SSE / HTTP 等 MCP 传输方式；stdio 仅允许在受控 Worker/沙箱内运行，不得由 API 进程直接拉起不受信任进程 | P0 |
 | FR-M-03 | MCP 工具发现与注册，供 Agent 绑定 | P0 |
 | FR-M-04 | MCP 调用鉴权与密钥管理 | P0 |
 | FR-M-05 | MCP 调用日志与监控 | P1 |
@@ -260,7 +261,7 @@ created ──▶ running ──▶ (waiting_human) ──▶ ...
 | FR-S-04 | Skill 沙箱执行与安全隔离 | P1 |
 | FR-S-05 | Skill 市场/仓库（内置 + 自定义） | P2 |
 
-> 注：本平台支持使用**本地 skill**，管理台动效实现亦可复用本地 skill 能力。
+> 注：本平台支持使用**本地 skill**。本地 skill 必须以受限 Worker/沙箱执行，明确文件、网络、进程和资源配额；管理台动效能力属于前端代码，不通过服务端 skill 获得隐式执行权限。
 
 ### 4.9 知识库
 
@@ -340,6 +341,8 @@ created ──▶ running ──▶ (waiting_human) ──▶ ...
 - `done` 事件必须携带最终状态（`completed` / `degraded` / `failed` 等），前端据此判断结果。
 - 断线重连：SDK 通过 `id` 续传，或按 `run_id` 重新拉取状态，保证不丢事件、不重复执行（幂等）。
 - 隐藏返回的 `action` 必须经过服务端白名单校验，非法 action 丢弃并告警。
+- MVP 统一采用基于 HTTP `POST` 响应体的 SSE 风格事件流（`text/event-stream`）；WebSocket 作为需要双向实时控制时的后续能力。两者共享同一事件 schema，不要求客户端同时实现两套业务协议。
+- `hidden` 事件只能携带服务端签发的能力范围和一次性 action token；`call_function`、`download_file` 等高风险动作必须映射到预注册操作，禁止直接执行客户端传入的任意函数名或 URL。
 
 **示例流：**
 
@@ -370,7 +373,7 @@ data: {"status":"completed"}
 | FR-C-01 | 管理台覆盖租户、应用、Agent、工作流、知识库、MCP、Skills、监控等全部模块 | P0 |
 | FR-C-02 | 工作流可视化编排器（节点拖拽、连线、实时预览） | P0 |
 | FR-C-03 | 运行 trace 可视化（图结构高亮执行路径） | P0 |
-| FR-C-04 | 高级智能动效（见 4.11） | P0 |
+| FR-C-04 | 高级智能动效（见 4.12） | P0 |
 | FR-C-05 | 响应式布局，支持深色/浅色主题 | P1 |
 | FR-C-06 | 前端 SDK（供 C 端应用接入，含隐藏返回拦截） | P1 |
 
@@ -419,12 +422,12 @@ data: {"status":"completed"}
 
 | 编号 | 需求 | 优先级 |
 |---|---|---|
-| FR-C-01 | **模型路由**：简单任务用小模型，复杂推理用大模型，按需分流 | P0 |
-| FR-C-02 | **语义缓存**：高频问答 Embedding 近似召回，命中直接返回 | P1 |
-| FR-C-03 | 上下文智能压缩：对话摘要、滑动窗口、重要性筛选 | P0 |
-| FR-C-04 | 工具结果缓存 + TTL，避免重复拉取 | P1 |
-| FR-C-05 | 租户/应用/会话级预算与告警，接近阈值自动降级 | P1 |
-| FR-C-06 | 分场景成本统计，支持按租户/应用分账 | P1 |
+| FR-FIN-01 | **模型路由**：简单任务用小模型，复杂推理用大模型，按需分流 | P0 |
+| FR-FIN-02 | **语义缓存**：高频问答 Embedding 近似召回，命中直接返回 | P1 |
+| FR-FIN-03 | 上下文智能压缩：对话摘要、滑动窗口、重要性筛选 | P0 |
+| FR-FIN-04 | 工具结果缓存 + TTL，避免重复拉取 | P1 |
+| FR-FIN-05 | 租户/应用/会话级预算与告警，接近阈值自动降级 | P1 |
+| FR-FIN-06 | 分场景成本统计，支持按租户/应用分账 | P1 |
 
 #### 4.13.4 可观测性
 
@@ -508,7 +511,7 @@ data: {"status":"completed"}
 | FR-API-01 | **应用级 API Key**：每个应用颁发独立密钥，用于 C 端/后端调用 | P0 |
 | FR-API-02 | **用户级 JWT**：终端用户身份令牌，携带 `user_id`，用于会话隔离 | P0 |
 | FR-API-03 | API Key 支持权限分级（只读/写/管理）、有效期、吊销与轮换 | P0 |
-| FR-API-04 | 所有请求强制携带 `tenant_id + app_id + conversation_id/user_id` 上下文 | P0 |
+| FR-API-04 | 所有请求必须具备 `tenant_id + app_id + conversation_id/user_id` 上下文；`tenant_id` 从凭证解析并校验，创建会话时由服务端生成 `conversation_id` | P0 |
 | FR-API-05 | 接口版本化（`/v1/...`），破坏性变更走新版本，旧版本保留兼容期 | P1 |
 
 #### 4.14.3 核心接口清单
@@ -556,13 +559,21 @@ data: {"status":"completed"}
 | 普通请求首 token 延迟 | < 2s（P95） |
 | 工作流调度开销 | 单节点调度 < 50ms |
 | 管理台首屏加载 | < 3s（P95） |
-| 动效帧率 | ≥ 60fps（无降帧） |
+| 动效帧率 | 常规交互目标 ≥ 60fps；复杂工作流图在支持设备上 P95 ≥ 55fps，低端设备与 `prefers-reduced-motion` 允许降级 |
+
+**接口与运行边界：**
+
+- 所有写接口必须支持 `Idempotency-Key`，服务端在租户 + 应用作用域内保存结果或状态，重复请求不得重复创建任务或执行不可逆动作。
+- API、模型、工具、知识库检索均需有租户/应用级限流和并发上限；超限返回可识别的 429 事件，不得静默排队。
+- 长耗时工作流必须异步化，接口返回 `run_id`，通过事件流和查询接口获取进度；请求超时不等同于任务取消。
 
 ### 5.2 可用性与可靠性
 
 - 服务高可用，核心链路支持水平扩展。
 - 工作流执行支持失败重试与降级。
 - 数据定期备份，支持灾难恢复。
+
+**灾备目标：**生产环境需明确并验收 RPO ≤ 15 分钟、RTO ≤ 1 小时；checkpoint、业务库、对象存储和事件日志分别说明备份与恢复策略。
 
 **SLI / SLO 定义（建议）：**
 
@@ -690,11 +701,11 @@ erDiagram
 | `CONVERSATION` | conversation_id, app_id, user_id | 运行时隔离单元 |
 | `MESSAGE` | message_id, conversation_id, role, content | 单条消息 |
 | `TASK_RUN` | run_id, conversation_id, workflow_version_id, status | 一次执行，遵循状态机 |
-| `CHECKPOINT` | thread_id(=conversation_id), version, state_blob | LangGraph 状态持久化 |
+| `CHECKPOINT` | checkpoint_id, thread_id(=conversation_id), parent_id, version, state_ref, created_at | LangGraph 状态快照；一个会话可有多个 checkpoint，按版本链恢复 |
 | `HIDDEN_RESPONSE` | id, message_id, action, payload | 隐藏返回 |
 | `TRACE_EVENT` | event_id, run_id, node, latency, tokens | 可观测性 |
 
-> 注：`Agent ↔ 知识库/MCP/Skill/模型` 均为多对多，需中间关联表。`CHECKPOINT.thread_id` 与 `CONVERSATION.conversation_id` 一一对应，作为状态隔离的物理锚点。
+> 注：`Agent ↔ 知识库/MCP/Skill/模型` 均为多对多，需中间关联表。`CHECKPOINT.thread_id` 必须等于所属 `CONVERSATION.conversation_id` 以保证隔离，但一个会话对应多个 checkpoint；`checkpoint_id` 或 `(thread_id, version)` 才是快照的唯一键。
 
 ---
 
