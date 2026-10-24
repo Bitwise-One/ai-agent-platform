@@ -20,7 +20,11 @@ class Base(DeclarativeBase):
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=utcnow,
+        server_default=func.now(),
+        nullable=False,
+        comment="创建时间（服务端写入，UTC）",
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -28,16 +32,24 @@ class TimestampMixin:
         onupdate=utcnow,
         server_default=func.now(),
         nullable=False,
+        comment="最后更新时间（任意写操作自动刷新，UTC）",
     )
 
 
 class CreatedAtMixin:
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=utcnow,
+        server_default=func.now(),
+        nullable=False,
+        comment="创建时间（服务端写入，UTC）",
     )
 
 
 class SoftDeleteMixin:
     deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None, nullable=True
+        DateTime(timezone=True),
+        default=None,
+        nullable=True,
+        comment="软删除时间，非空表示已删除（查询默认过滤）",
     )
