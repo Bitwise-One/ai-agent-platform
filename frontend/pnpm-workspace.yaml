@@ -1,0 +1,17 @@
+# pnpm 依赖构建策略
+#
+# 1) nodeLinker: hoisted
+#    pnpm 默认使用「软链接 + 虚拟存储」布局。本机（Windows，未开启开发者模式、
+#    非管理员）无法创建软链接，pnpm 会静默建成空目录，导致 tsc 报
+#    `Cannot find type definition file for 'react'`、vite 也起不来。
+#    hoisted 布局把依赖实体直接铺到 node_modules（类似 npm），不依赖软链接权限，
+#    代价是失去「同一依赖多版本共存」的严格隔离——控制台只有一层依赖，可接受。
+#
+# 2) allowBuilds
+#    pnpm 默认拦截依赖的 postinstall（供应链安全：脚本可执行任意命令），
+#    被拦截时 install 直接失败并提示 `pnpm approve-builds`。
+#    这里只放行 esbuild —— Vite 依赖它的原生二进制。
+allowBuilds:
+  esbuild: true
+
+nodeLinker: hoisted

@@ -52,3 +52,8 @@ htmlcov/
 data/
 # 迁移一致性测试的工作目录（见 backend/tests/test_migrations.py）
 _mig_check/
+
+# 本地 UI 校验产物（无头浏览器截图 / 临时 CDP 脚本）
+_shots/
+_chrome*/
+_*.mjs

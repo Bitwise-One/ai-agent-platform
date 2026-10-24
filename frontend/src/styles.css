@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局基线：企业后台的三条默认约束
+   1. 正文 14px / 1.5 —— 与令牌一致，避免各页面自行其是；
+   2. 背景用 layout 灰、内容用白卡，靠「描边 + 留白」分区而不是投影；
+   3. 焦点态必须可见（键盘可达），统一用 2px 品牌色描边。 */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-surface-layout text-ink-primary font-sans text-body antialiased;
+  }
+
+  /* 数字等宽：表格与指标里的数字必须对齐，否则扫读时眼睛会跳 */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme("colors.brand.500");
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: theme("colors.brand.100");
+  }
+}
+
+@layer components {
+  /* 细滚动条：画布与日志区需要，但不应抢视觉重心 */
+  .scroll-slim::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.16);
+    border-radius: 4px;
+  }
+
+  .scroll-slim::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* 画布底纹：1px 网格，比圆点更利于对齐节点 */
+  .canvas-grid {
+    background-image:
+      linear-gradient(to right, rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.045) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* 尊重系统「减少动态效果」偏好（可访问性硬要求） */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
