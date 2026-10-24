@@ -1,0 +1,52 @@
+name: backend-ci
+
+# 触发范围收窄到 backend，避免前端（M3 起）的改动无谓地跑 Python 流程。
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  quality-gate:
+    name: lint + test + migration guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.12.13"
+
+      - name: 安装 Python
+        run: uv python install 3.13
+
+      # --frozen：严格按 uv.lock 安装，锁文件与 pyproject 不一致时直接失败，
+      # 避免 CI 悄悄解析出新版本依赖导致「本地能过、线上不一样」。
+      - name: 同步依赖
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check app tests alembic
+
+      - name: 单元与接口测试
+        run: uv run pytest -q
+
+      # 迁移与 ORM 的同步检查。测试里已有等价用例（tests/test_migrations.py），
+      # 这里再单独跑一遍是为了在 CI 日志里给出显式的、可读的失败原因：
+      # 漏写迁移是最高频的回归，值得一个独立步骤把它标红。
+      - name: 迁移可执行性 + 与 ORM 一致性
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./ci_migration_check.db
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
