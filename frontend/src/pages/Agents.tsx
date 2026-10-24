@@ -9,10 +9,13 @@
  *    并在提交前做去空格、去空项，不把脏数据写进库。
  */
 
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
 import { agentsApi, knowledgeApi, modelsApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
+import { listContainer } from "../lib/motion";
+import { popItem } from "../components/motion";
 import { useWorkspace } from "../state/workspace";
 import {
   Button,
@@ -271,21 +274,27 @@ export function AgentsPage() {
                     {agent.keywords.length === 0 ? (
                       <span className="text-caption text-ink-tertiary">—</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
+                      <motion.div
+                        className="flex flex-wrap gap-1"
+                        variants={listContainer}
+                        initial="initial"
+                        animate="animate"
+                      >
                         {agent.keywords.slice(0, 4).map((kw) => (
-                          <span
+                          <motion.span
                             key={kw}
+                            variants={popItem}
                             className="rounded-sm bg-surface-fill px-1.5 py-0.5 text-caption text-ink-secondary"
                           >
                             {kw}
-                          </span>
+                          </motion.span>
                         ))}
                         {agent.keywords.length > 4 && (
                           <span className="text-caption text-ink-tertiary">
                             +{agent.keywords.length - 4}
                           </span>
                         )}
-                      </div>
+                      </motion.div>
                     )}
                   </Td>
                   <Td>
@@ -297,16 +306,22 @@ export function AgentsPage() {
                     {kbNames(bindings[agent.id]).length === 0 ? (
                       <span className="text-caption text-ink-tertiary">未绑定</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
+                      <motion.div
+                        className="flex flex-wrap gap-1"
+                        variants={listContainer}
+                        initial="initial"
+                        animate="animate"
+                      >
                         {kbNames(bindings[agent.id]).map((name) => (
-                          <span
+                          <motion.span
                             key={name}
+                            variants={popItem}
                             className="rounded-sm bg-brand-50 px-1.5 py-0.5 text-caption text-brand-600"
                           >
                             {name}
-                          </span>
+                          </motion.span>
                         ))}
-                      </div>
+                      </motion.div>
                     )}
                   </Td>
                   <Td align="right">{agent.temperature.toFixed(1)}</Td>

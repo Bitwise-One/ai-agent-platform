@@ -14,7 +14,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { useWorkspace } from "../state/workspace";
-import { BreathingDot, ScrollProgress } from "./motion";
+import { BreathingDot, FadeSwap, ScrollProgress } from "./motion";
 import {
   IconAgent,
   IconBook,
@@ -72,7 +72,12 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full min-h-screen bg-surface-layout">
       <aside className="flex w-[216px] shrink-0 flex-col border-r border-line-split bg-surface">
-        <div className="flex h-14 items-center gap-2.5 px-5">
+        <motion.div
+          className="flex h-14 items-center gap-2.5 px-5"
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+        >
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-caption font-semibold text-white">
             AP
           </span>
@@ -80,7 +85,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="text-body font-medium text-ink-primary">Agent Platform</div>
             <div className="text-[11px] text-ink-tertiary">编排控制台</div>
           </div>
-        </div>
+        </motion.div>
 
         <nav className="mt-2 flex-1 px-2" aria-label="主导航">
           {NAV.map((item) => {
@@ -125,15 +130,13 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <div className="border-t border-line-split px-4 py-3">
           <div className="flex items-center gap-2 text-caption text-ink-tertiary">
+            {/* 三种健康态三种表达：连接成功慢呼吸、掉线同频呼吸但用错误色（吸引注意）、检测中静止 */}
             {health === "ok" ? (
               <BreathingDot className="text-state-success-fg" />
+            ) : health === "down" ? (
+              <BreathingDot className="text-state-error-fg" />
             ) : (
-              <span
-                className={
-                  "h-1.5 w-1.5 rounded-full " +
-                  (health === "down" ? "bg-state-error-fg" : "bg-ink-tertiary")
-                }
-              />
+              <span className="h-1.5 w-1.5 rounded-full bg-ink-tertiary" />
             )}
             {health === "ok" ? "后端已连接" : health === "down" ? "后端未连接" : "检测中…"}
           </div>
@@ -142,7 +145,13 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line-split bg-surface px-6">
-          <div className="flex shrink-0 items-center gap-2 text-caption text-ink-tertiary">
+          {/* 工作区切换是全局状态，首屏一次轻入；之后它一直在，不该反复抢戏 */}
+          <motion.div
+            className="flex shrink-0 items-center gap-2 text-caption text-ink-tertiary"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
             <span className="whitespace-nowrap">工作区</span>
             {loading ? (
               <Spinner size={12} />
@@ -179,10 +188,13 @@ export function Shell({ children }: { children: ReactNode }) {
                 </Select>
               </>
             )}
-          </div>
+          </motion.div>
 
+          {/* 错误信息换内容时淡出淡入：原地替换文本会「跳」 */}
           {error && (
-            <div className="truncate text-caption text-[#CF1322]">{error}</div>
+            <FadeSwap id={error}>
+              <div className="truncate text-caption text-[#CF1322]">{error}</div>
+            </FadeSwap>
           )}
         </header>
 

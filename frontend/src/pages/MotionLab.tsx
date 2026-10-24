@@ -23,7 +23,7 @@ import { LAB_GROUPS, LAB_TOTAL } from "../components/lab";
 import { AuroraField, SplitText } from "../components/motion";
 import { Button } from "../components/ui";
 import { IconRefresh, IconSparkle } from "../components/icons";
-import { EASE } from "../lib/motion";
+import { EASE, listContainer, listItem } from "../lib/motion";
 
 const ADOPT = [
   {
@@ -116,20 +116,35 @@ export function MotionLabPage() {
       </div>
 
       {/* ---------------------------------------------------------- 落地说明 */}
-      <div className="mt-11 rounded-card border border-line-split bg-surface px-5 py-4">
-        <div className="flex items-center gap-2">
+      <motion.div
+        className="mt-11 rounded-card border border-line-split bg-surface px-5 py-4"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: EASE, delay: 0.1 }}
+      >
+        <motion.div
+          className="flex items-center gap-2"
+          initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, ease: EASE, delay: 0.18 }}
+        >
           <IconSparkle size={14} />
           <h2 className="text-subtitle text-ink-primary">怎么用</h2>
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+        </motion.div>
+        <motion.div
+          className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3"
+          variants={listContainer}
+          initial="initial"
+          animate="animate"
+        >
           {ADOPT.map((item) => (
-            <div key={item.title}>
+            <motion.div key={item.title} variants={listItem}>
               <div className="text-caption font-medium text-ink-primary">{item.title}</div>
               <p className="mt-1 text-caption leading-5 text-ink-tertiary">{item.body}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
