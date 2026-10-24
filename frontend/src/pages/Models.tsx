@@ -7,9 +7,11 @@
  */
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 
 import { modelsApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
+import { Flash } from "../components/motion";
 import {
   Button,
   Card,
@@ -30,6 +32,11 @@ import {
 } from "../components/ui";
 import { IconPlus, IconPlay, IconTrash } from "../components/icons";
 import type { ModelConfig, ModelProbeResult } from "../lib/types";
+
+/** 探测结果 + 落地时间戳：时间戳只用于触发「刚更新」的高亮，不参与展示 */
+interface ProbeState extends ModelProbeResult {
+  at: number;
+}
 
 interface FormState {
   name: string;
@@ -62,7 +69,7 @@ export function ModelsPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
-  const [probes, setProbes] = useState<Record<string, ModelProbeResult>>({});
+  const [probes, setProbes] = useState<Record<string, ProbeState>>({});
   const { pending, run } = useSubmit();
 
   const create = async () => {
@@ -94,7 +101,7 @@ export function ModelsPage() {
   const probe = async (model: ModelConfig) => {
     try {
       const result = await modelsApi.probe(model.id);
-      setProbes((prev) => ({ ...prev, [model.id]: result }));
+      setProbes((prev) => ({ ...prev, [model.id]: { ...result, at: Date.now() } }));
       if (result.ok && result.ready) toast.push(`${model.name} 连通正常（${result.latency_ms}ms）`);
       else if (result.ok) toast.push("链路可用，但当前部署未接入真实模型（走 mock）", "info");
       else toast.push(result.detail ?? "探测失败", "error");
@@ -198,19 +205,27 @@ export function ModelsPage() {
                       {model.price_out != null ? `¥${model.price_out}` : "—"}
                     </Td>
                     <Td>
-                      {probeResult ? (
-                        <div className="flex items-center gap-2">
-                          <StatusTag tone={probeResult.ok ? "success" : "error"}>
-                            {probeResult.ok ? "可用" : "失败"}
-                          </StatusTag>
-                          <span className="text-caption text-ink-tertiary">
-                            {probeResult.latency_ms}ms
-                            {!probeResult.ready && " · mock"}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-caption text-ink-tertiary">未探测</span>
-                      )}
+                      {/* 探测结果落表时整格高亮一闪：延迟数字会变，但「刚测完」这件事不标记就会漏掉 */}
+                      <Flash value={probeResult?.at ?? 0} className="-mx-1 rounded-control px-1 py-1.5">
+                        {probeResult ? (
+                          <motion.div
+                            className="flex items-center gap-2"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ type: "spring", stiffness: 520, damping: 26, mass: 0.5 }}
+                          >
+                            <StatusTag tone={probeResult.ok ? "success" : "error"}>
+                              {probeResult.ok ? "可用" : "失败"}
+                            </StatusTag>
+                            <span className="text-caption text-ink-tertiary">
+                              {probeResult.latency_ms}ms
+                              {!probeResult.ready && " · mock"}
+                            </span>
+                          </motion.div>
+                        ) : (
+                          <span className="text-caption text-ink-tertiary">未探测</span>
+                        )}
+                      </Flash>
                     </Td>
                     <Td align="right">
                       <div className="flex justify-end gap-1">
