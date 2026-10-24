@@ -6,51 +6,14 @@
  * 所以逐字而不是逐块，逐位而不是整体淡入淡出。
  */
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
-import { EASE, spring } from "../../lib/motion";
+import { spring } from "../../lib/motion";
+// 逐字翻入与里程表已提升为全站原语（指标卡、标题都要用），这里直接复用，避免两份实现漂移
+import { Odometer, SplitText } from "../motion";
 
 /* ---------------------------------------------------------------- 逐字翻入 */
-
-/**
- * 逐字 3D 翻入：每个字绕底边向后翻 92°再落下。
- * 必须给父层 perspective，否则 rotateX 只是把字压扁，没有"翻"的感觉。
- */
-export function SplitText({
-  text,
-  className = "",
-  delay = 0,
-  stagger = 0.045,
-}: {
-  text: string;
-  className?: string;
-  delay?: number;
-  stagger?: number;
-}) {
-  const reduce = useReducedMotion();
-
-  return (
-    <span className={className} style={{ display: "inline-block", perspective: 640 }}>
-      {Array.from(text).map((char, index) => (
-        <motion.span
-          key={`${char}-${index}`}
-          className="inline-block"
-          style={{ transformOrigin: "50% 100%", whiteSpace: "pre" }}
-          initial={reduce ? { opacity: 0 } : { opacity: 0, rotateX: -92, y: 14 }}
-          animate={reduce ? { opacity: 1 } : { opacity: 1, rotateX: 0, y: 0 }}
-          transition={{
-            duration: reduce ? 0.2 : 0.62,
-            ease: EASE,
-            delay: reduce ? 0 : delay + index * stagger,
-          }}
-        >
-          {char}
-        </motion.span>
-      ))}
-    </span>
-  );
-}
 
 export function CharRevealDemo() {
   const [round, setRound] = useState(0);
@@ -81,59 +44,6 @@ export function CharRevealDemo() {
 }
 
 /* ---------------------------------------------------------------- 里程表 */
-
-const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-/**
- * 里程表：每一位是一条 0–9 的竖条，改数字就是把它整体上下平移。
- * 相比 CountUp（整个数字跳变），这个能让眼睛看清"是哪一位在进位"。
- */
-export function Odometer({
-  value,
-  fontSize = 34,
-  className = "",
-}: {
-  value: number;
-  fontSize?: number;
-  className?: string;
-}) {
-  const digits = String(Math.max(0, Math.round(value))).split("");
-  const cell = Math.round(fontSize * 0.62);
-
-  return (
-    <span
-      className={"inline-flex tabular " + className}
-      style={{ fontSize, lineHeight: `${fontSize}px` }}
-      aria-label={String(value)}
-    >
-      {digits.map((digit, index) => (
-        <span
-          key={`${index}-${digits.length}`}
-          className="relative inline-block overflow-hidden"
-          style={{ height: fontSize, width: cell }}
-          aria-hidden="true"
-        >
-          <motion.span
-            className="absolute left-0 top-0 flex w-full flex-col items-center"
-            initial={false}
-            animate={{ y: -Number(digit) * fontSize }}
-            transition={{ type: "spring", stiffness: 260, damping: 30, mass: 0.8 }}
-          >
-            {DIGITS.map((n) => (
-              <span
-                key={n}
-                className="block w-full text-center"
-                style={{ height: fontSize, lineHeight: `${fontSize}px` }}
-              >
-                {n}
-              </span>
-            ))}
-          </motion.span>
-        </span>
-      ))}
-    </span>
-  );
-}
 
 export function OdometerDemo() {
   const [value, setValue] = useState(1286);

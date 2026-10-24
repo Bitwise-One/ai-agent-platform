@@ -16,11 +16,13 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { EffectCard, LabGroup } from "../components/lab/LabShell";
+import { BarGrowDemo, ListCollapseDemo, SparklineDemo, TabSlideDemo } from "../components/lab/effects-data";
+import { LoadingMorphDemo, RippleDemo, ShakeDemo, SkeletonSwap } from "../components/lab/effects-feedback";
 import { GooeyBlobs, LiquidLoader, SplashStage } from "../components/lab/effects-fluid";
 import { ShimmerBorder, ScrollDepth, TiltCard } from "../components/lab/effects-light";
 import { DragCard, MagneticButton, ShuffleGrid } from "../components/lab/effects-physics";
-import { CharRevealDemo, OdometerDemo, StreamTyper, SplitText } from "../components/lab/effects-type";
-import { AuroraField } from "../components/motion";
+import { CharRevealDemo, OdometerDemo, StreamTyper } from "../components/lab/effects-type";
+import { AuroraField, SplitText } from "../components/motion";
 import { Button } from "../components/ui";
 import { IconRefresh, IconSparkle } from "../components/icons";
 import { EASE } from "../lib/motion";
@@ -28,15 +30,15 @@ import { EASE } from "../lib/motion";
 const ADOPT = [
   {
     title: "已全站生效",
-    body: "页面切换、列表逐项入场、卡片悬停、按压反馈、Toast、骨架屏淡出。",
+    body: "页面切换、列表逐行入场、卡片悬停、按压回弹、Toast、骨架扫光、滚动进度、错误抖动。",
   },
   {
     title: "按页面下沉",
-    body: "里程表数字给指标卡，磁力按钮给主操作，FLIP 洗牌给筛选与排序。",
+    body: "里程表给指标卡，波纹给主操作，删除塌陷给列表，滑移指示器给标签页，折线给监控卡。",
   },
   {
     title: "只留在这里",
-    body: "Gooey 融合、3D 倾斜这类强装饰，业务页面积有限时不建议常驻。",
+    body: "Gooey 融合、3D 倾斜、磁力按钮这类强装饰，业务页面积有限时不建议常驻。",
   },
 ];
 
@@ -72,11 +74,11 @@ export function MotionLabPage() {
           </motion.div>
 
           <h1 key={`hero-${replay}`} className="mt-3 text-h1 text-ink-primary">
-            <SplitText text="十二种会让手停下来的动效" stagger={0.032} />
+            <SplitText text="二十种会让手停下来的动效" stagger={0.032} />
           </h1>
 
           <p className="mt-2 max-w-[600px] text-body leading-6 text-ink-tertiary">
-            这是全站唯一允许「放开」的区域：液体、物理、光影、文字四组，
+            这是全站唯一允许「放开」的区域：液体、物理、光影、文字、反馈、数据六组，
             每一种都能直接上手操作。选中的效果再按需要下沉到业务页面，
             而不是先在业务页写一版、不满意再改一版。
           </p>
@@ -90,7 +92,7 @@ export function MotionLabPage() {
               重放全部
             </Button>
             <span className="text-caption text-ink-tertiary">
-              12 个效果 · 全部可交互 · 尊重 prefers-reduced-motion
+              20 个效果 · 全部可交互 · 尊重 prefers-reduced-motion
             </span>
           </div>
         </div>
@@ -191,6 +193,66 @@ export function MotionLabPage() {
             note="打字时光标闪动、声纹跳动；打完后声纹落回静止。把「模型还在算」变成可感知的节拍。"
           >
             <StreamTyper />
+          </EffectCard>
+        </LabGroup>
+
+        <LabGroup index="05" title="反馈与状态" desc="波纹、形变、抖动——回答「我这一下，系统收到了吗」">
+          <EffectCard
+            name="点击波纹"
+            note="以按下点为圆心扩散水膜，而不是从元素中心。颜色取 currentColor，主/次按钮自动适配。"
+          >
+            <RippleDemo />
+          </EffectCard>
+
+          <EffectCard
+            name="按钮加载形变"
+            note="文字让位给「环 + 执行中」，靠 layout 让按钮宽度真的收放，最后整块转成成功色。"
+          >
+            <LoadingMorphDemo />
+          </EffectCard>
+
+          <EffectCard
+            name="表单错误抖动"
+            note="横向衰减摆动 7px，只给「出错了」这一件事。连点同一条错误也会再抖一次。"
+          >
+            <ShakeDemo />
+          </EffectCard>
+
+          <EffectCard
+            name="骨架交接"
+            note="扫光骨架 → 真实内容交叉淡入。骨架宽度刻意做阶梯，比等宽更像真实文字，等待感更短。"
+          >
+            <SkeletonSwap />
+          </EffectCard>
+        </LabGroup>
+
+        <LabGroup index="06" title="数据与结构" desc="描边、生长、塌陷——让「数据的形状在变」有方向">
+          <EffectCard
+            name="折线自绘"
+            note="pathLength 0→1 描边自绘，新数据点用 d 补间推进。比整条重画更连续。"
+          >
+            <SparklineDemo />
+          </EffectCard>
+
+          <EffectCard
+            name="柱状生长"
+            note="从底部长出（scaleY + origin-bottom），逐根错峰 60ms；悬停时当根再长高一截并显示数值。"
+          >
+            <BarGrowDemo />
+          </EffectCard>
+
+          <EffectCard
+            name="删除塌陷"
+            note="被删的行向左飞走并塌掉高度，其余行用 layout 平滑补位——因果闭合，列表不会「跳」。"
+          >
+            <ListCollapseDemo />
+          </EffectCard>
+
+          <EffectCard
+            name="滑移指示器"
+            note="一条 layoutId 胶囊在互斥标签间滑动，同时驱动下方数据重播。位置关系就是心智模型。"
+          >
+            <TabSlideDemo />
           </EffectCard>
         </LabGroup>
       </div>
