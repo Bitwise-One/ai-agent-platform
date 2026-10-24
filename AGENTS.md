@@ -50,6 +50,27 @@
 - `uv.lock` 必须提交到仓库，保证团队与 CI 环境一致。
 - 禁止提交 `.venv/`。
 
+### 2.2 数据库迁移约定（强制）
+
+- **`backend/alembic.ini` 必须保持纯 ASCII**。原因：Alembic 用 `configparser`
+  读取 ini，且以**系统 locale 编码**解码（zh-CN Windows 下是 GBK）。一旦写入中文，
+  `alembic` 所有命令会直接抛 `UnicodeDecodeError` 而无法启动。
+  中文说明请写到 `alembic/env.py`、迁移脚本或本文档里——这些是 Python/UTF-8 源文件。
+- **改 ORM 必须同批带迁移**：`app/models/` 任何字段增删都必须在同一个 commit 里
+  包含 `alembic revision` 产物，禁止「先合代码、迁移后续补」。
+- **迁移脚本不得依赖未导入的符号**：`autogenerate` 生成的 `sa.JSON().with_variant(
+  postgresql.JSONB(astext_type=Text()), ...)` 中的 `Text` 不会自动加 import，
+  必须手工补 `from sqlalchemy import Text`。
+- **方言差异要显式分支**：PostgreSQL 专属能力（RLS、pgvector、部分索引）必须写成
+  `if bind.dialect.name != "postgresql": return` 或 `DO $$ ... $$` 能力探测，
+  保证 SQLite（本地测试/CI）可跑通。
+- **提交前自检**（CI 已固化，见 `backend/tests/test_migrations.py`）：
+
+  ```bash
+  uv run alembic upgrade head   # 空库可升级
+  uv run alembic check          # 模型与迁移零差异，否则说明漏了迁移
+  ```
+
 ---
 
 ## 3. 架构原则
