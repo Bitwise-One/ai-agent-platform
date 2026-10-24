@@ -121,6 +121,181 @@
     background-size: 220% 100%;
     animation: sk-sweep 1.55s ease-in-out infinite;
   }
+
+  /* ============================================================
+     常驻循环字典（第二批）
+     这些类让「一个效果」只需要写结构、不需要写关键帧：
+     同一个 .anim-orbit 配不同 duration，就得到公转、卫星、雷达。
+     ============================================================ */
+
+  /* 公转：容器旋转，子元素摆在容器边缘就成了「绕着中心转」 */
+  .anim-orbit {
+    animation: lab-spin 12s linear infinite;
+  }
+
+  .anim-orbit-rev {
+    animation: lab-spin 12s linear infinite reverse;
+  }
+
+  .anim-orbit-fast {
+    animation: lab-spin 5s linear infinite;
+  }
+
+  .anim-orbit-slow {
+    animation: lab-spin 26s linear infinite;
+  }
+
+  /* 心跳式缩放：起手快、收尾慢，比正弦更像「活着」 */
+  .anim-pulse {
+    animation: lab-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  .anim-pulse-fast {
+    animation: lab-pulse 1.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  .anim-breathe {
+    animation: lab-breathe 5s ease-in-out infinite;
+  }
+
+  .anim-jelly {
+    animation: lab-jelly 1.6s ease-in-out infinite;
+  }
+
+  .anim-pop {
+    animation: lab-pop 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  .anim-wobble {
+    animation: lab-wobble 2.2s ease-in-out infinite;
+  }
+
+  .anim-swing {
+    animation: lab-swing 3.4s ease-in-out infinite;
+  }
+
+  .anim-pendulum {
+    animation: lab-pendulum 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .anim-bounce {
+    animation: lab-bounce 1.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  }
+
+  .anim-blink {
+    animation: lab-blink 1.05s steps(1, end) infinite;
+  }
+
+  .anim-flicker {
+    animation: lab-flicker 3.6s steps(1, end) infinite;
+  }
+
+  .anim-glitch {
+    animation: lab-glitch 2.8s steps(1, end) infinite;
+  }
+
+  .anim-marquee {
+    animation: lab-marquee 9s linear infinite;
+  }
+
+  .anim-scan {
+    animation: lab-scan 2.6s linear infinite;
+  }
+
+  .anim-rain {
+    animation: lab-rain 2.4s linear infinite;
+  }
+
+  .anim-snake {
+    animation: lab-snake 3.2s ease-in-out infinite;
+  }
+
+  /* 三点等待：逐个错峰，像有人在敲摩斯电码 */
+  .anim-dots span {
+    animation: lab-dot 1.25s ease-in-out infinite;
+  }
+
+  .anim-dots span:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+
+  .anim-dots span:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+
+  .anim-shine {
+    background: linear-gradient(100deg, currentColor 30%, #ffffff 50%, currentColor 70%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: lab-shine 3.4s linear infinite;
+  }
+
+  .anim-gradient-text {
+    background: linear-gradient(100deg, #7644a7, #9c6bc9, #389e0d, #7644a7);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: lab-gradient 6s linear infinite;
+  }
+
+  /* 声纳：两层错开的环，靠 delay 形成「一圈圈传出去」 */
+  .anim-sonar {
+    animation: lab-sonar 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  .anim-sonar-2 {
+    animation-delay: 1.4s;
+  }
+
+  .anim-confetti {
+    animation: lab-confetti 1.8s ease-in infinite;
+  }
+
+  .anim-curtain {
+    animation: lab-curtain 3.4s ease-in-out infinite;
+  }
+
+  .anim-ticker {
+    animation: lab-ticker 3.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  /* 熔岩灯的对流：走 translate 属性，和 lab-blob 的 transform 各管各的 */
+  .anim-lava {
+    animation: lab-lava-rise 8s ease-in-out infinite;
+  }
+
+  /* 表面张力滴落：拉长 → 断开 → 落到底消失 */
+  .anim-tension {
+    animation: lab-tension 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* 字符波浪：每个字配一个 animation-delay，波就从左走到右 */
+  .anim-bob-y {
+    animation: lab-bob-y 1.5s ease-in-out infinite;
+  }
+
+  /* 竖向无缝行情：内容复制两份，位移 -50% 即回到起点 */
+  .anim-ticker-v {
+    animation: lab-ticker-v 8s linear infinite;
+  }
+
+  /* 翻滚：绕 X 轴来回翻，配合自转就是立方体/螺旋的转法 */
+  .anim-tumble {
+    animation: lab-tumble 5s ease-in-out infinite;
+  }
+
+  /* 节拍：一秒两下，重音在前、轻音在后 */
+  .anim-beat {
+    animation: lab-beat 1s ease-out infinite;
+  }
+
+  /* 心跳：双跳，第二下明显弱于第一下 */
+  .anim-heart {
+    animation: lab-heart 1.4s ease-in-out infinite;
+  }
 }
 
 @keyframes lab-float {
@@ -151,6 +326,392 @@
   }
   100% {
     background-position: -30% 0;
+  }
+}
+
+/* ---------------------------------------------------------------- 第二批 */
+
+@keyframes lab-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  60%,
+  100% {
+    transform: scale(1.09);
+    opacity: 0.72;
+  }
+}
+
+@keyframes lab-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(118, 68, 167, 0.18);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 12px rgba(118, 68, 167, 0);
+  }
+}
+
+@keyframes lab-jelly {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(1.12, 0.88);
+  }
+  55% {
+    transform: scale(0.92, 1.08);
+  }
+  75% {
+    transform: scale(1.04, 0.97);
+  }
+}
+
+@keyframes lab-pop {
+  0%,
+  70%,
+  100% {
+    transform: scale(1);
+  }
+  82% {
+    transform: scale(1.16);
+  }
+}
+
+@keyframes lab-wobble {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes lab-swing {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+/* 单摆：以顶端为轴，越靠中点越快（sin 的导数天然如此） */
+@keyframes lab-pendulum {
+  0% {
+    transform: rotate(-26deg);
+  }
+  12.5% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(26deg);
+  }
+  50% {
+    transform: rotate(-26deg);
+  }
+  62.5% {
+    transform: rotate(0deg);
+  }
+  75% {
+    transform: rotate(26deg);
+  }
+  100% {
+    transform: rotate(-26deg);
+  }
+}
+
+@keyframes lab-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1);
+  }
+  45% {
+    transform: translateY(-16px);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1);
+  }
+}
+
+@keyframes lab-blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0.08;
+  }
+}
+
+/* 霓虹：亮度随机跳变，用 steps 卡掉插值才像灯管 */
+@keyframes lab-flicker {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.32;
+  }
+  95% {
+    opacity: 0.9;
+  }
+  97% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes lab-glitch {
+  0%,
+  88%,
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translate(0);
+  }
+  90% {
+    clip-path: inset(12% 0 58% 0);
+    transform: translate(-2px, 1px);
+  }
+  93% {
+    clip-path: inset(58% 0 8% 0);
+    transform: translate(3px, -1px);
+  }
+  96% {
+    clip-path: inset(38% 0 42% 0);
+    transform: translate(-1px, 0);
+  }
+}
+
+@keyframes lab-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes lab-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(400%);
+  }
+}
+
+@keyframes lab-rain {
+  0% {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(420%);
+    opacity: 0;
+  }
+}
+
+@keyframes lab-snake {
+  0%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: -220;
+  }
+}
+
+@keyframes lab-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes lab-shine {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
+}
+
+@keyframes lab-gradient {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+@keyframes lab-sonar {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes lab-confetti {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(78px) rotate(320deg);
+    opacity: 0;
+  }
+}
+
+@keyframes lab-curtain {
+  0%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+  50% {
+    clip-path: inset(0 0 55% 0);
+  }
+}
+
+@keyframes lab-ticker {
+  0%,
+  22% {
+    transform: translateY(0);
+  }
+  30%,
+  52% {
+    transform: translateY(-14px);
+  }
+  60%,
+  82% {
+    transform: translateY(-28px);
+  }
+  88%,
+  100% {
+    transform: translateY(-42px);
+  }
+}
+
+@keyframes lab-lava-rise {
+  0%,
+  100% {
+    translate: 0 28px;
+  }
+  50% {
+    translate: 0 -28px;
+  }
+}
+
+@keyframes lab-tension {
+  0% {
+    transform: scale(1, 1) translateY(0);
+    opacity: 1;
+  }
+  32% {
+    transform: scale(0.86, 1.9) translateY(0);
+    opacity: 1;
+  }
+  58% {
+    transform: scale(0.78, 2.2) translateY(8px);
+    opacity: 0.95;
+  }
+  86% {
+    transform: scale(0.78, 2.2) translateY(46px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1, 1) translateY(0);
+    opacity: 0;
+  }
+}
+
+@keyframes lab-bob-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes lab-ticker-v {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes lab-tumble {
+  0%,
+  100% {
+    transform: rotateX(-34deg);
+  }
+  50% {
+    transform: rotateX(34deg);
+  }
+}
+
+@keyframes lab-beat {
+  0% {
+    transform: scale(1);
+  }
+  8% {
+    transform: scale(1.12);
+  }
+  20% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.07);
+  }
+  44%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes lab-heart {
+  0%,
+  34%,
+  100% {
+    transform: scale(1);
+  }
+  12% {
+    transform: scale(1.22);
+  }
+  24% {
+    transform: scale(0.96);
   }
 }
 

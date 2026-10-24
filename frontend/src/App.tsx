@@ -8,7 +8,7 @@
  * 只有三项齐备才渲染具体的业务页面，避免每个页面都写一遍「未选择应用」。
  */
 
-import { useState, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
@@ -27,12 +27,27 @@ import {
 import { AgentsPage } from "./pages/Agents";
 import { KnowledgePage } from "./pages/Knowledge";
 import { ModelsPage } from "./pages/Models";
-import { MotionLabPage } from "./pages/MotionLab";
 import { OverviewPage } from "./pages/Overview";
 import { PlaygroundPage } from "./pages/Playground";
 import { WorkflowEditorPage } from "./pages/WorkflowEditor";
 import { WorkflowsPage } from "./pages/Workflows";
 import { WorkspaceProvider, useWorkspace } from "./state/workspace";
+
+/**
+ * 动效实验室单独拆包：120 个演示对业务页面没有任何用处，
+ * 但它自己就把主包撑大了 20%+。懒加载后首屏只加载真正要用的部分。
+ */
+const MotionLabPage = lazy(() =>
+  import("./pages/MotionLab").then((m) => ({ default: m.MotionLabPage })),
+);
+
+function LabFallback() {
+  return (
+    <div className="flex items-center gap-2 py-20 text-body text-ink-tertiary">
+      <Spinner size={14} /> 正在加载动效实验室…
+    </div>
+  );
+}
 
 /** 空状态容器：创建租户 / 创建应用共用同一套版式 */
 function SetupCard({
@@ -259,7 +274,9 @@ function Routed() {
             path="/motion"
             element={
               <PageShell>
-                <MotionLabPage />
+                <Suspense fallback={<LabFallback />}>
+                  <MotionLabPage />
+                </Suspense>
               </PageShell>
             }
           />
