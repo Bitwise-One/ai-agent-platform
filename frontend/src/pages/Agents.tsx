@@ -32,6 +32,7 @@ import {
   Td,
   Textarea,
   Th,
+  Tr,
   statusText,
   taskTone,
   useToast,
@@ -253,8 +254,8 @@ export function AgentsPage() {
               </tr>
             </thead>
             <tbody>
-              {(agents.data ?? []).map((agent) => (
-                <tr key={agent.id} className="transition-colors hover:bg-surface-header">
+              {(agents.data ?? []).map((agent, index) => (
+                <Tr key={agent.id} index={index} className="transition-colors hover:bg-surface-header">
                   <Td>
                     <div className="flex items-center gap-2">
                       <span className="text-body text-ink-primary">{agent.name}</span>
@@ -328,7 +329,7 @@ export function AgentsPage() {
                       </Button>
                     </div>
                   </Td>
-                </tr>
+                </Tr>
               ))}
             </tbody>
           </Table>

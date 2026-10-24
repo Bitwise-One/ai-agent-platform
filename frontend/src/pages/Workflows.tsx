@@ -26,6 +26,7 @@ import {
   Table,
   Td,
   Th,
+  Tr,
   statusText,
   taskTone,
   useToast,
@@ -119,10 +120,10 @@ export function WorkflowsPage() {
               </tr>
             </thead>
             <tbody>
-              {(flows.data ?? []).map((flow) => {
+              {(flows.data ?? []).map((flow, index) => {
                 const bound = app?.default_workflow_id === flow.id;
                 return (
-                  <tr key={flow.id} className="hover:bg-surface-header">
+                  <Tr key={flow.id} index={index} className="hover:bg-surface-header">
                     <Td>
                       <div className="flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded bg-brand-50 text-brand-600">
@@ -154,7 +155,7 @@ export function WorkflowsPage() {
                         打开画布
                       </Link>
                     </Td>
-                  </tr>
+                  </Tr>
                 );
               })}
             </tbody>

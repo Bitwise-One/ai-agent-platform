@@ -25,6 +25,7 @@ import {
   Table,
   Td,
   Th,
+  Tr,
   useToast,
 } from "../components/ui";
 import { IconPlus, IconPlay, IconTrash } from "../components/icons";
@@ -174,10 +175,10 @@ export function ModelsPage() {
               </tr>
             </thead>
             <tbody>
-              {(models.data ?? []).map((model) => {
+              {(models.data ?? []).map((model, index) => {
                 const probeResult = probes[model.id];
                 return (
-                  <tr key={model.id} className="transition-colors hover:bg-surface-header">
+                  <Tr key={model.id} index={index} className="transition-colors hover:bg-surface-header">
                     <Td>{model.name}</Td>
                     <Td>
                       <span className="font-mono text-caption text-ink-secondary">
@@ -232,7 +233,7 @@ export function ModelsPage() {
                         </Button>
                       </div>
                     </Td>
-                  </tr>
+                  </Tr>
                 );
               })}
             </tbody>

@@ -30,6 +30,7 @@ import {
   Td,
   Textarea,
   Th,
+  Tr,
   statusText,
   taskTone,
   useToast,
@@ -256,8 +257,8 @@ export function KnowledgePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(docs.data ?? []).map((doc) => (
-                    <tr key={doc.id} className="hover:bg-surface-header">
+                  {(docs.data ?? []).map((doc, index) => (
+                    <Tr key={doc.id} index={index} className="hover:bg-surface-header">
                       <Td>{doc.title}</Td>
                       <Td>
                         <span className="text-caption text-ink-tertiary">
@@ -280,7 +281,7 @@ export function KnowledgePage() {
                           <IconTrash size={13} />
                         </Button>
                       </Td>
-                    </tr>
+                    </Tr>
                   ))}
                 </tbody>
               </Table>

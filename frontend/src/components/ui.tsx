@@ -27,6 +27,7 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
+import { EASE } from "../lib/motion";
 import { IconAlert, IconCheck, IconClose } from "./icons";
 
 /* ------------------------------------------------------------------ 按钮 */
@@ -47,7 +48,12 @@ const buttonVariants: Record<ButtonVariant, string> = {
   danger: "bg-white text-[#CF1322] border border-[#FFCCC7] hover:bg-[#FFF1F0]",
 };
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps
+  // 用 motion.button 后，framer 的动画回调与 React 的同名事件类型冲突，先剔掉再声明
+  extends Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    "onDrag" | "onDragStart" | "onDragEnd" | "onAnimationStart" | "onAnimationEnd" | "onAnimationIteration"
+  > {
   variant?: ButtonVariant;
   size?: "sm" | "md";
   loading?: boolean;
@@ -65,7 +71,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
+    <motion.button
       type="button"
       className={clsx(
         buttonBase,
@@ -74,11 +80,14 @@ export function Button({
         className,
       )}
       disabled={disabled || loading}
+      // 全站按钮统一的"按下去有实体感"：只压 3%，弹回比按下更慢一点
+      whileTap={disabled || loading ? undefined : { scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 520, damping: 28, mass: 0.6 }}
       {...rest}
     >
       {loading ? <Spinner size={12} /> : icon}
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -149,24 +158,24 @@ export function Switch({
   label?: string;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={clsx(
-        "relative h-5 w-9 rounded-full transition-colors duration-150",
-        checked ? "bg-brand-500" : "bg-[#D9D9D9]",
-      )}
+      whileTap={{ scale: 0.94 }}
+      className="relative h-5 w-9 shrink-0 rounded-full"
+      animate={{ backgroundColor: checked ? "#7644A7" : "#D9D9D9" }}
+      transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
     >
-      <span
-        className={clsx(
-          "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all duration-150",
-          checked ? "left-[18px]" : "left-0.5",
-        )}
+      {/* 滑块用弹簧而不是线性位移：越过中点时会有一点点"被吸住"的迟滞 */}
+      <motion.span
+        className="absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm"
+        animate={{ x: checked ? 18 : 2 }}
+        transition={{ type: "spring", stiffness: 520, damping: 30, mass: 0.6 }}
       />
-    </button>
+    </motion.button>
   );
 }
 
@@ -221,13 +230,39 @@ export function PageHeader({
   description?: string;
   actions?: ReactNode;
 }) {
+  // 标题比描述早 60ms、比操作按钮早 100ms：视线自然从"这是哪"落到"能做什么"
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
-      <div>
-        <h1 className="text-h1 text-ink-primary">{title}</h1>
-        {description && <p className="mt-1.5 text-body text-ink-tertiary">{description}</p>}
+      <div className="min-w-0">
+        <motion.h1
+          className="text-h1 text-ink-primary"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+        >
+          {title}
+        </motion.h1>
+        {description && (
+          <motion.p
+            className="mt-1.5 text-body text-ink-tertiary"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: EASE, delay: 0.06 }}
+          >
+            {description}
+          </motion.p>
+        )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && (
+        <motion.div
+          className="flex shrink-0 items-center gap-2"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE, delay: 0.1 }}
+        >
+          {actions}
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -405,6 +440,34 @@ export function Table({ children }: { children: ReactNode }) {
     <div className="scroll-slim overflow-x-auto">
       <table className="w-full border-collapse text-body">{children}</table>
     </div>
+  );
+}
+
+/**
+ * 动画表格行：全站列表统一用它代替裸 `<tr>`。
+ *
+ * 逐行入场而不是整表淡入——用户扫读时视线是从上往下走的，
+ * 逐行出现正好把这条路径"铺"出来。index 超过 14 之后不再累加延迟，
+ * 否则长列表的最后一屏要等好几秒。
+ */
+export function Tr({
+  index = 0,
+  className,
+  children,
+}: {
+  index?: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.tr
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: EASE, delay: Math.min(index, 14) * 0.028 }}
+      className={className}
+    >
+      {children}
+    </motion.tr>
   );
 }
 
