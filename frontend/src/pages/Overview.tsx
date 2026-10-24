@@ -6,11 +6,14 @@
  * 真正需要趋势时会去可观测性页面（M6），概览页保持扫描友好。
  */
 
+import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 
 import { agentsApi, knowledgeApi, modelsApi, workflowsApi } from "../lib/api";
 import { useAsync } from "../lib/hooks";
+import { listContainer, listItem, spring } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
+import { AuroraField, CountUp, Stagger } from "../components/motion";
 import { Card, CardHeader, ErrorNote, PageHeader, Skeleton, StatusTag, statusText, taskTone } from "../components/ui";
 import { IconArrowRight, IconBook, IconGraph } from "../components/icons";
 
@@ -26,19 +29,26 @@ function Metric({
   loading?: boolean;
 }) {
   return (
-    <Card className="px-6 py-5">
-      <div className="text-caption text-ink-secondary">{label}</div>
-      <div className="mt-2 flex items-baseline gap-1">
-        {loading ? (
-          <Skeleton className="h-7 w-12" />
-        ) : (
-          <>
-            <span className="tabular text-metric text-ink-primary">{value}</span>
-            {suffix && <span className="text-caption text-ink-tertiary">{suffix}</span>}
-          </>
-        )}
+    <motion.div
+      variants={listItem}
+      whileHover={{ y: -2 }}
+      transition={spring}
+      className="rounded-card border border-line-split bg-surface shadow-card"
+    >
+      <div className="px-6 py-5">
+        <div className="text-caption text-ink-secondary">{label}</div>
+        <div className="mt-2 flex items-baseline gap-1">
+          {loading ? (
+            <Skeleton className="h-7 w-12" />
+          ) : (
+            <>
+              <CountUp value={value} className="tabular text-metric text-ink-primary" />
+              {suffix && <span className="text-caption text-ink-tertiary">{suffix}</span>}
+            </>
+          )}
+        </div>
       </div>
-    </Card>
+    </motion.div>
   );
 }
 
@@ -69,27 +79,37 @@ export function OverviewPage() {
 
   return (
     <div>
-      <PageHeader
-        title="概览"
-        description={app ? `${app.name} · 编排与接入现状` : "尚未选择应用"}
-      />
+      {/* 极光只铺在「页头 + KPI」这一层，卡片是白底会自然挡住它，
+          所以数据区仍然干净，只在留白处透出一点流动感 */}
+      <div className="relative">
+        <AuroraField className="pointer-events-none absolute -top-6 left-0 right-0 h-[240px] opacity-80" />
+        <div className="relative">
+          <PageHeader
+            title="概览"
+            description={app ? `${app.name} · 编排与接入现状` : "尚未选择应用"}
+          />
 
-      {error && (
-        <div className="mb-4">
-          <ErrorNote message={error} onRetry={() => void agents.reload()} />
+          {error && (
+            <div className="mb-4">
+              <ErrorNote message={error} onRetry={() => void agents.reload()} />
+            </div>
+          )}
+
+          <Stagger
+            className="grid grid-cols-2 gap-4 lg:grid-cols-4"
+            variants={listContainer}
+          >
+            <Metric label="Agent 数量" value={agents.data?.length ?? 0} loading={loading} />
+            <Metric label="工作流" value={flows.data?.length ?? 0} loading={loading} />
+            <Metric label="知识库" value={kbs.data?.length ?? 0} loading={loading} />
+            <Metric
+              label="已入库文档"
+              value={docStats.data ?? 0}
+              suffix="篇"
+              loading={docStats.loading}
+            />
+          </Stagger>
         </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Metric label="Agent 数量" value={agents.data?.length ?? 0} loading={loading} />
-        <Metric label="工作流" value={flows.data?.length ?? 0} loading={loading} />
-        <Metric label="知识库" value={kbs.data?.length ?? 0} loading={loading} />
-        <Metric
-          label="已入库文档"
-          value={docStats.data ?? 0}
-          suffix="篇"
-          loading={docStats.loading}
-        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">

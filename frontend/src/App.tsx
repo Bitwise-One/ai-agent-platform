@@ -9,9 +9,11 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AnimatePresence, MotionConfig } from "framer-motion";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { Shell } from "./components/Shell";
+import { PageShell } from "./components/motion";
 import {
   Button,
   Card,
@@ -148,6 +150,7 @@ function OnboardingApp() {
 function Routed() {
   const { loading, error, tenants, apps, refresh } = useWorkspace();
   const toast = useToast();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -188,16 +191,72 @@ function Routed() {
 
   return (
     <Shell>
-      <Routes>
-        <Route path="/" element={<OverviewPage />} />
-        <Route path="/workflows" element={<WorkflowsPage />} />
-        <Route path="/workflows/:wfId" element={<WorkflowEditorPage />} />
-        <Route path="/agents" element={<AgentsPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/models" element={<ModelsPage />} />
-        <Route path="/playground" element={<PlaygroundPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      {/*
+        mode="wait"：先退场再进场，避免两个页面在过渡期同时占位导致布局跳动。
+        initial={false}：首屏不做进场动画，否则「打开就要等一下」的观感很差。
+        key 用 pathname：同一页面内的 query/state 变化不触发整页重绘。
+      */}
+      <AnimatePresence mode="wait" initial={false}>
+        <Routes location={location} key={location.pathname}>
+          <Route
+            path="/"
+            element={
+              <PageShell>
+                <OverviewPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/workflows"
+            element={
+              <PageShell>
+                <WorkflowsPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/workflows/:wfId"
+            element={
+              <PageShell>
+                <WorkflowEditorPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/agents"
+            element={
+              <PageShell>
+                <AgentsPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/knowledge"
+            element={
+              <PageShell>
+                <KnowledgePage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/models"
+            element={
+              <PageShell>
+                <ModelsPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/playground"
+            element={
+              <PageShell>
+                <PlaygroundPage />
+              </PageShell>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AnimatePresence>
     </Shell>
   );
 }
@@ -205,11 +264,14 @@ function Routed() {
 export default function App() {
   return (
     <BrowserRouter>
-      <WorkspaceProvider>
-        <ToastProvider>
-          <Routed />
-        </ToastProvider>
-      </WorkspaceProvider>
+      {/* reducedMotion="user"：系统开了「减少动态效果」时，framer 自动降级为直接跳到终态 */}
+      <MotionConfig reducedMotion="user">
+        <WorkspaceProvider>
+          <ToastProvider>
+            <Routed />
+          </ToastProvider>
+        </WorkspaceProvider>
+      </MotionConfig>
     </BrowserRouter>
   );
 }

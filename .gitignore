@@ -57,3 +57,8 @@ _mig_check/
 _shots/
 _chrome*/
 _*.mjs
+/_*.json
+
+# 后端临时诊断脚本（__init__.py 必须保留在版本控制里）
+/backend/_*.py
+!/backend/__init__.py

@@ -11,11 +11,14 @@
  * token 走 SSE 增量渲染；同时保留「非流式」模式，方便对比两种路径的结果是否一致。
  */
 
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { agentsApi, chatApi, streamChat } from "../lib/api";
 import { useAsync } from "../lib/hooks";
+import { EASE, listContainer, listItem } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
+import { AuroraField, StreamCursor } from "../components/motion";
 import {
   Button,
   Card,
@@ -283,25 +286,51 @@ export function PlaygroundPage() {
 
           <div ref={scrollRef} className="scroll-slim flex-1 space-y-4 overflow-y-auto px-6 py-4">
             {turns.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-                  <IconChat size={18} />
-                </span>
-                <p className="text-body text-ink-secondary">输入一句话开始调试</p>
-                <p className="mt-1 max-w-sm text-caption text-ink-tertiary">
-                  右侧会同步显示路由到了哪个 Agent、命中了哪些知识片段
-                </p>
+              <div className="relative flex h-full flex-col items-center justify-center overflow-hidden text-center">
+                {/* 空白对话区给一层极光：比纯白更「有生命」，但不干扰读字 */}
+                <AuroraField className="opacity-70" />
+                <motion.div
+                  className="relative flex flex-col items-center"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.42, ease: EASE }}
+                >
+                  <motion.span
+                    className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600"
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 18, delay: 0.1 }}
+                  >
+                    <IconChat size={18} />
+                  </motion.span>
+                  <p className="text-body text-ink-secondary">输入一句话开始调试</p>
+                  <p className="mt-1 max-w-sm text-caption text-ink-tertiary">
+                    右侧会同步显示路由到了哪个 Agent、命中了哪些知识片段
+                  </p>
+                </motion.div>
               </div>
             ) : (
               turns.map((turn) =>
                 turn.role === "user" ? (
-                  <div key={turn.id} className="flex justify-end">
+                  <motion.div
+                    key={turn.id}
+                    className="flex justify-end"
+                    initial={{ opacity: 0, y: 8, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.24, ease: EASE }}
+                  >
                     <div className="max-w-[78%] rounded-card rounded-tr-sm bg-brand-500 px-3.5 py-2.5 text-body text-white">
                       {turn.content}
                     </div>
-                  </div>
+                  </motion.div>
                 ) : (
-                  <div key={turn.id} className="flex justify-start">
+                  <motion.div
+                    key={turn.id}
+                    className="flex justify-start"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.26, ease: EASE }}
+                  >
                     <div className="max-w-[82%]">
                       <div className="mb-1 flex items-center gap-2 text-caption text-ink-tertiary">
                         <span>助手</span>
@@ -316,12 +345,10 @@ export function PlaygroundPage() {
                       </div>
                       <div className="whitespace-pre-wrap rounded-card rounded-tl-sm border border-line-split bg-surface px-3.5 py-2.5 text-body leading-7 text-ink-primary">
                         {turn.content}
-                        {turn.streaming && (
-                          <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-brand-500 align-middle" />
-                        )}
+                        {turn.streaming && <StreamCursor />}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ),
               )
             )}
@@ -374,7 +401,13 @@ export function PlaygroundPage() {
                 还没有执行记录。发送一条消息后这里会显示决策链路。
               </div>
             ) : (
-              <div className="space-y-4 px-5 py-4">
+              <motion.div
+                key={trace.runId}
+                className="space-y-4 px-5 py-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.24, ease: EASE }}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-caption text-ink-secondary">终态</span>
                   <StatusTag tone={taskTone(trace.status)}>{statusText(trace.status)}</StatusTag>
@@ -383,7 +416,12 @@ export function PlaygroundPage() {
                 <div>
                   <div className="mb-1.5 text-caption text-ink-secondary">路由决策</div>
                   {trace.route ? (
-                    <div className="rounded-control bg-surface-fill px-3 py-2.5 text-caption">
+                    <motion.div
+                      className="rounded-control bg-surface-fill px-3 py-2.5 text-caption"
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.28, ease: EASE, delay: 0.06 }}
+                    >
                       <div className="flex items-center justify-between">
                         <span className="text-ink-primary">
                           {agentName(trace.route.selected)}
@@ -398,7 +436,7 @@ export function PlaygroundPage() {
                         策略 {trace.route.strategy} ·{" "}
                         {trace.route.reason || "无附加说明"}
                       </div>
-                    </div>
+                    </motion.div>
                   ) : (
                     <p className="text-caption text-ink-tertiary">
                       非流式模式下不返回路由事件；切到流式可看到实时决策
@@ -414,10 +452,16 @@ export function PlaygroundPage() {
                   {trace.ragSources.length === 0 ? (
                     <p className="text-caption text-ink-tertiary">未命中片段</p>
                   ) : (
-                    <ul className="space-y-1.5">
+                    <motion.ul
+                      className="space-y-1.5"
+                      variants={listContainer}
+                      initial="initial"
+                      animate="animate"
+                    >
                       {trace.ragSources.map((source) => (
-                        <li
+                        <motion.li
                           key={`${source.document_id}-${source.index}`}
+                          variants={listItem}
                           className="rounded-control bg-surface-fill px-2.5 py-1.5"
                         >
                           <div className="flex items-center justify-between text-caption">
@@ -428,9 +472,9 @@ export function PlaygroundPage() {
                               {source.score.toFixed(3)}
                             </span>
                           </div>
-                        </li>
+                        </motion.li>
                       ))}
-                    </ul>
+                    </motion.ul>
                   )}
                 </div>
 
@@ -474,7 +518,7 @@ export function PlaygroundPage() {
                     {trace.reason}
                   </div>
                 )}
-              </div>
+              </motion.div>
             )}
           </Card>
 

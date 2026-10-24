@@ -9,10 +9,12 @@
  *   放在界面上比看控制台报错快得多。
  */
 
+import { motion } from "framer-motion";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { useWorkspace } from "../state/workspace";
+import { BreathingDot } from "./motion";
 import {
   IconAgent,
   IconBook,
@@ -94,7 +96,13 @@ export function Shell({ children }: { children: ReactNode }) {
                 }
               >
                 {active && (
-                  <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-brand-500" />
+                  // layoutId 让指示条在导航项之间「滑动」而不是闪现：
+                  // 位置关系本身就是导航的心智模型，滑动把这个关系画了出来
+                  <motion.span
+                    layoutId="nav-active-bar"
+                    className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-brand-500"
+                    transition={{ type: "spring", stiffness: 520, damping: 40 }}
+                  />
                 )}
                 <Icon size={16} />
                 {item.label}
@@ -105,16 +113,16 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <div className="border-t border-line-split px-4 py-3">
           <div className="flex items-center gap-2 text-caption text-ink-tertiary">
-            <span
-              className={
-                "h-1.5 w-1.5 rounded-full " +
-                (health === "ok"
-                  ? "bg-state-success-fg"
-                  : health === "down"
-                    ? "bg-state-error-fg"
-                    : "bg-ink-tertiary")
-              }
-            />
+            {health === "ok" ? (
+              <BreathingDot className="text-state-success-fg" />
+            ) : (
+              <span
+                className={
+                  "h-1.5 w-1.5 rounded-full " +
+                  (health === "down" ? "bg-state-error-fg" : "bg-ink-tertiary")
+                }
+              />
+            )}
             {health === "ok" ? "后端已连接" : health === "down" ? "后端未连接" : "检测中…"}
           </div>
         </div>
