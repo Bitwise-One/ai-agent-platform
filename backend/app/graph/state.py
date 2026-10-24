@@ -53,6 +53,10 @@ class AgentState(TypedDict, total=False):
     parallel_results: Annotated[dict[str, Any], merge_parallel]
     draft_output: str | None
 
+    # ---- RAG（M2）：检索到的上下文与引用来源 ----
+    rag_context: str
+    rag_sources: Annotated[list[dict[str, Any]], merge_messages]
+
     # ---- 校验与终态 ----
     guard_passed: bool | None
     guard_reason: str

@@ -60,3 +60,5 @@ class ChatResponse(BaseModel):
     reply: str | None = None
     hidden_responses: list[dict] = Field(default_factory=list)
     token_usage: int = 0
+    # RAG 引用来源，供前端展示「答案依据」（FR-K-09）
+    rag_sources: list[dict] = Field(default_factory=list)
