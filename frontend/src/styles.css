@@ -52,6 +52,32 @@
     background: transparent;
   }
 
+  /* 卡片悬停扫光：一道斜向高光掠过，只在 hover 时出现一次。
+     transition 只写在 :hover 上——移开鼠标时瞬间复位，不会看到高光「倒着扫回去」。 */
+  .card-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(118, 68, 167, 0.08) 50%,
+      transparent 60%
+    );
+    transform: translateX(-120%);
+    pointer-events: none;
+  }
+
+  .card-sheen:hover::after {
+    transform: translateX(120%);
+    transition: transform 0.7s ease;
+  }
+
   /* 画布底纹：1px 网格，比圆点更利于对齐节点 */
   .canvas-grid {
     background-image:

@@ -208,13 +208,15 @@ export function Switch({
 
 export function Card({
   className,
+  sheen = false,
   children,
   ...rest
-}: HTMLAttributes<HTMLDivElement>) {
+}: HTMLAttributes<HTMLDivElement> & { sheen?: boolean }) {
   return (
     <div
       className={clsx(
         "rounded-card border border-line-split bg-surface shadow-card",
+        sheen && "card-sheen",
         className,
       )}
       {...rest}

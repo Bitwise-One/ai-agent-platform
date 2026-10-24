@@ -316,6 +316,132 @@ export function useFlash(value: unknown): boolean {
   return flash;
 }
 
+/* ================================================================ 条件显隐 */
+
+/**
+ * 条件块显隐：高度与透明度一起动，退场时先收起来再卸载。
+ *
+ * 用在哪：检查器卡片、随开关出现的表单字段——这些块「时有时无」，
+ * 直接条件渲染会「闪」一下，高度动画把出现/消失本身变成可见的过程。
+ *
+ * 注意：内容必须是块级且自带左右尺寸（高度动画只接管垂直方向），
+ * 所以调用方传 className 控制宽度，组件内部只加 overflow-hidden。
+ */
+export function Reveal({
+  show,
+  children,
+  className,
+}: {
+  show: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.div
+          className={className}
+          style={{ overflow: "hidden" }}
+          initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+          animate={reduce ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+          exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+          transition={{ duration: 0.26, ease: EASE }}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* ================================================================ 变化高亮 */
+
+/**
+ * 变化高亮：`value` 发生变化时，整块扫过一次品牌色。
+ *
+ * 用在哪：探测结果落表、trace 面板的耗时/Token 刷新——数字本身会变，
+ * 但「它刚变了」这件事不标记出来，用户扫读时会漏掉。
+ * 不改布局、不加边框，只借一层会散掉的淡色，所以可以放心裹在表格单元格外。
+ */
+export function Flash({
+  value,
+  children,
+  className,
+}: {
+  value: unknown;
+  children: ReactNode;
+  className?: string;
+}) {
+  const active = useFlash(value);
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className={className}
+      initial={false}
+      animate={
+        active && !reduce
+          ? { backgroundColor: ["rgba(118,68,167,0.16)", "rgba(118,68,167,0)"] }
+          : { backgroundColor: "rgba(118,68,167,0)" }
+      }
+      transition={{ duration: 0.6, ease: EASE }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ================================================================ 内容切换 */
+
+/**
+ * 内容切换：同一位置换内容时，旧的淡出、新的淡入，两者不重叠。
+ *
+ * 用在哪：画布的连线提示、trace 面板的 run_id——原地替换 DOM 会「跳」一下，
+ * 淡出淡入把「换了」这个事件本身变得可感知。id 变才重放，内容不变不动画。
+ */
+export function FadeSwap({
+  id,
+  children,
+  className,
+}: {
+  id: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={id}
+        className={className}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.16, ease: EASE }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+/* ================================================================ 小件弹入 */
+
+/** 小件弹入：比 listItem 多一层缩放，用于标签、徽标这类「该被看见」的小元素 */
+export const popItem: Variants = {
+  initial: { opacity: 0, scale: 0.82 },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    transition: { type: "spring", stiffness: 520, damping: 24, mass: 0.5 },
+  },
+};
+
+/** 逐项浮入：检查器里的列表项（连线、版本、校验问题）统一用它，比整卡淡入更容易定位 */
+export const riseItem: Variants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: EASE } },
+};
+
 /* ================================================================ 点击波纹 */
 
 export interface RippleItem {
