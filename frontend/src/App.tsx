@@ -27,6 +27,7 @@ import {
 import { AgentsPage } from "./pages/Agents";
 import { KnowledgePage } from "./pages/Knowledge";
 import { ModelsPage } from "./pages/Models";
+import { MotionLabPage } from "./pages/MotionLab";
 import { OverviewPage } from "./pages/Overview";
 import { PlaygroundPage } from "./pages/Playground";
 import { WorkflowEditorPage } from "./pages/WorkflowEditor";
@@ -251,6 +252,14 @@ function Routed() {
             element={
               <PageShell>
                 <PlaygroundPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/motion"
+            element={
+              <PageShell>
+                <MotionLabPage />
               </PageShell>
             }
           />

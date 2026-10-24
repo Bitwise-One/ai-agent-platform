@@ -22,6 +22,7 @@ import {
   IconChat,
   IconDashboard,
   IconGraph,
+  IconSparkle,
 } from "./icons";
 import { Select, Spinner } from "./ui";
 
@@ -32,6 +33,7 @@ const NAV = [
   { to: "/knowledge", label: "知识库", icon: IconBook },
   { to: "/models", label: "模型目录", icon: IconBrain },
   { to: "/playground", label: "对话调试台", icon: IconChat },
+  { to: "/motion", label: "动效实验室", icon: IconSparkle },
 ];
 
 function useHealth(): "ok" | "down" | "checking" {
