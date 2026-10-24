@@ -2,10 +2,10 @@
 
 import uuid
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, JSONType, SoftDeleteMixin, TimestampMixin
+from app.models.base import Base, CreatedAtMixin, JSONType, SoftDeleteMixin, TimestampMixin
 
 
 class Application(Base, TimestampMixin, SoftDeleteMixin):
@@ -44,6 +44,10 @@ class Agent(Base, TimestampMixin, SoftDeleteMixin):
     memory_strategy: Mapped[str] = mapped_column(
         String(32), nullable=False, default="sliding_window"
     )
+    # 规则路由关键词（含 re: 前缀表示正则），供 RuleRouter 使用
+    keywords: Mapped[list] = mapped_column(JSONType, nullable=False, default=list)
+    # 是否为该应用的默认/兜底 Agent
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
 
 
@@ -64,7 +68,7 @@ class Workflow(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
 
 
-class WorkflowVersion(Base):
+class WorkflowVersion(Base, CreatedAtMixin):
     """工作流版本快照（不可变），支撑灰度与回滚。"""
 
     __tablename__ = "workflow_version"
