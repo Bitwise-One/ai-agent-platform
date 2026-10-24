@@ -3,25 +3,23 @@
  *
  * 为什么单独做一页而不是散落在各业务页面：
  * 1. 业务页面的动效必须克制（信息密度优先），没地方展示"能做什么"；
- * 2. 动效质量只能靠对比来看——十二种放在一起，哪种廉价、哪种高级一目了然；
+ * 2. 动效质量只能靠对比来看——一百多种放在一起，哪种廉价、哪种高级一目了然；
  * 3. 它是"选型面板"：这里选中的效果再按需下沉到列表页/详情页，
  *    而不是先在业务页写一版、不满意再改一版。
  *
  * 本页是唯一允许放开装饰的地方，但依然守两条底线：
  * - 所有无限循环动画都是低幅度、低对比（不抢阅读）；
  * - 全部尊重 prefers-reduced-motion（系统开了就退化为静态终态）。
+ *
+ * 页面本身不列举任何效果：所有卡片由 lab/index.ts 的注册表驱动，
+ * 数量与分组只维护一处，避免"改了内容忘了改标题里的数字"。
  */
 
 import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { EffectCard, LabGroup } from "../components/lab/LabShell";
-import { BarGrowDemo, ListCollapseDemo, SparklineDemo, TabSlideDemo } from "../components/lab/effects-data";
-import { LoadingMorphDemo, RippleDemo, ShakeDemo, SkeletonSwap } from "../components/lab/effects-feedback";
-import { GooeyBlobs, LiquidLoader, SplashStage } from "../components/lab/effects-fluid";
-import { ShimmerBorder, ScrollDepth, TiltCard } from "../components/lab/effects-light";
-import { DragCard, MagneticButton, ShuffleGrid } from "../components/lab/effects-physics";
-import { CharRevealDemo, OdometerDemo, StreamTyper } from "../components/lab/effects-type";
+import { LAB_GROUPS, LAB_TOTAL } from "../components/lab";
 import { AuroraField, SplitText } from "../components/motion";
 import { Button } from "../components/ui";
 import { IconRefresh, IconSparkle } from "../components/icons";
@@ -74,12 +72,12 @@ export function MotionLabPage() {
           </motion.div>
 
           <h1 key={`hero-${replay}`} className="mt-3 text-h1 text-ink-primary">
-            <SplitText text="二十种会让手停下来的动效" stagger={0.032} />
+            <SplitText text={`${LAB_TOTAL} 种会让手停下来的动效`} stagger={0.032} />
           </h1>
 
           <p className="mt-2 max-w-[600px] text-body leading-6 text-ink-tertiary">
-            这是全站唯一允许「放开」的区域：液体、物理、光影、文字、反馈、数据六组，
-            每一种都能直接上手操作。选中的效果再按需要下沉到业务页面，
+            这是全站唯一允许「放开」的区域：材质、物理、光影、文字、反馈、数据、空间、
+            手势、节奏、编排十二组，每一种都能直接上手操作。选中的效果再按需要下沉到业务页面，
             而不是先在业务页写一版、不满意再改一版。
           </p>
 
@@ -92,7 +90,7 @@ export function MotionLabPage() {
               重放全部
             </Button>
             <span className="text-caption text-ink-tertiary">
-              20 个效果 · 全部可交互 · 尊重 prefers-reduced-motion
+              {LAB_TOTAL} 个效果 · 全部可交互 · 尊重 prefers-reduced-motion
             </span>
           </div>
         </div>
@@ -100,161 +98,21 @@ export function MotionLabPage() {
 
       {/* ---------------------------------------------------------- 效果 */}
       <div key={`grid-${replay}`}>
-        <LabGroup index="01" title="液体与材质" desc="表面张力、形变、溅射——让界面有「物质感」">
-          <EffectCard
-            name="Gooey 磁吸水滴"
-            note="三层不同刚度的 spring 叠加 + SVG alpha 融合滤镜。靠近时粘连、拉开时拉丝断裂。"
-          >
-            <GooeyBlobs />
-          </EffectCard>
-
-          <EffectCard
-            name="液态形变加载器"
-            note="不规则 border-radius 关键帧 + 缓慢自转 + 高光。比转圈图标更能表达「正在酝酿」。"
-          >
-            <LiquidLoader />
-          </EffectCard>
-
-          <EffectCard
-            name="水滴分溅 2.0"
-            note="主溅射落地后 130ms 补一发偏移的二次溅射，模拟真实液体的二次飞溅。"
-          >
-            <SplashStage />
-          </EffectCard>
-        </LabGroup>
-
-        <LabGroup index="02" title="物理与运动" desc="刚度、阻尼、惯性——手感来自于参数而不是关键帧">
-          <EffectCard
-            name="弹簧拖拽甩卡"
-            note="松手按甩出速度做惯性回弹（bounceStiffness 330 / damping 15），并即时显示速度。"
-          >
-            <DragCard />
-          </EffectCard>
-
-          <EffectCard
-            name="磁力按钮"
-            note="光标进入 150px 引力场后按钮被牵引，内部文字再乘 0.35 形成视差——磁铁与被吸附物的错位。"
-          >
-            <MagneticButton />
-          </EffectCard>
-
-          <EffectCard
-            name="布局洗牌（FLIP）"
-            note="只改数据顺序，位置补间交给 layout。列表筛选、看板拖拽、排序都能直接复用。"
-          >
-            <ShuffleGrid />
-          </EffectCard>
-        </LabGroup>
-
-        <LabGroup index="03" title="光影与纵深" desc="视角、光源、景深——让平面产生厚度">
-          <EffectCard
-            name="3D 倾斜卡"
-            note="perspective + 双轴旋转跟随光标，内容按 translateZ 分层，高光贴在卡面上（mix-blend-overlay）。"
-            height={240}
-          >
-            <TiltCard />
-          </EffectCard>
-
-          <EffectCard
-            name="流光描边 + 光标聚光"
-            note="conic-gradient 在 1px 边框槽里旋转，面板内另有一团跟随光标的聚光；两层光不同步才显得真实。"
-            height={240}
-          >
-            <ShimmerBorder />
-          </EffectCard>
-
-          <EffectCard
-            name="滚动景深"
-            note="由容器自身的 scrollYProgress 驱动，越远的层移动越慢、越淡——视差必须挂在滚动进度上才不假。"
-            height={240}
-            bare
-          >
-            <ScrollDepth />
-          </EffectCard>
-        </LabGroup>
-
-        <LabGroup index="04" title="文字与数据" desc="逐字、逐位、逐帧——让「内容在变」这件事可追踪">
-          <EffectCard
-            name="逐字 3D 翻入"
-            note="每个字绕底边翻 92° 落下，父层必给 perspective，否则只是把字压扁。"
-          >
-            <CharRevealDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="里程表数字"
-            note="每一位是一条 0–9 竖条，改数字就是平移它。能看清「是哪一位在进位」，比整体跳变高级。"
-          >
-            <OdometerDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="流式打字 + 声纹"
-            note="打字时光标闪动、声纹跳动；打完后声纹落回静止。把「模型还在算」变成可感知的节拍。"
-          >
-            <StreamTyper />
-          </EffectCard>
-        </LabGroup>
-
-        <LabGroup index="05" title="反馈与状态" desc="波纹、形变、抖动——回答「我这一下，系统收到了吗」">
-          <EffectCard
-            name="点击波纹"
-            note="以按下点为圆心扩散水膜，而不是从元素中心。颜色取 currentColor，主/次按钮自动适配。"
-          >
-            <RippleDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="按钮加载形变"
-            note="文字让位给「环 + 执行中」，靠 layout 让按钮宽度真的收放，最后整块转成成功色。"
-          >
-            <LoadingMorphDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="表单错误抖动"
-            note="横向衰减摆动 7px，只给「出错了」这一件事。连点同一条错误也会再抖一次。"
-          >
-            <ShakeDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="骨架交接"
-            note="扫光骨架 → 真实内容交叉淡入。骨架宽度刻意做阶梯，比等宽更像真实文字，等待感更短。"
-          >
-            <SkeletonSwap />
-          </EffectCard>
-        </LabGroup>
-
-        <LabGroup index="06" title="数据与结构" desc="描边、生长、塌陷——让「数据的形状在变」有方向">
-          <EffectCard
-            name="折线自绘"
-            note="pathLength 0→1 描边自绘，新数据点用 d 补间推进。比整条重画更连续。"
-          >
-            <SparklineDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="柱状生长"
-            note="从底部长出（scaleY + origin-bottom），逐根错峰 60ms；悬停时当根再长高一截并显示数值。"
-          >
-            <BarGrowDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="删除塌陷"
-            note="被删的行向左飞走并塌掉高度，其余行用 layout 平滑补位——因果闭合，列表不会「跳」。"
-          >
-            <ListCollapseDemo />
-          </EffectCard>
-
-          <EffectCard
-            name="滑移指示器"
-            note="一条 layoutId 胶囊在互斥标签间滑动，同时驱动下方数据重播。位置关系就是心智模型。"
-          >
-            <TabSlideDemo />
-          </EffectCard>
-        </LabGroup>
+        {LAB_GROUPS.map((group) => (
+          <LabGroup key={group.index} index={group.index} title={group.title} desc={group.desc}>
+            {group.items.map((item) => (
+              <EffectCard
+                key={item.name}
+                name={item.name}
+                note={item.note}
+                height={item.height}
+                bare={item.bare}
+              >
+                {item.node}
+              </EffectCard>
+            ))}
+          </LabGroup>
+        ))}
       </div>
 
       {/* ---------------------------------------------------------- 落地说明 */}

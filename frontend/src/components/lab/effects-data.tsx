@@ -10,7 +10,6 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
 import { EASE } from "../../lib/motion";
-import { Sparkline } from "../motion";
 
 /* ---------------------------------------------------------------- 折线描边 */
 
@@ -64,8 +63,11 @@ export function SparklineDemo() {
           transition={{ duration: 0.5, delay: 0.2 }}
         />
 
-        {/* 描边自绘：pathLength 0 → 1，长度不同的路径都能自动归一化 */}
+        {/* 描边自绘：pathLength 0 → 1，长度不同的路径都能自动归一化。
+           数据换一批就换 key 重画一遍——比原地 morph 路径更可靠，
+           framer 不会在两条结构不同的 path 之间插值。 */}
         <motion.path
+          key={`line-${tick}`}
           d={d}
           fill="none"
           stroke="#7644A7"
@@ -73,8 +75,8 @@ export function SparklineDemo() {
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
           initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1, d }}
-          transition={{ pathLength: { duration: 1.1, ease: EASE }, d: { duration: 0.7, ease: EASE } }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: reduce ? 0 : 1.1, ease: EASE }}
         />
       </svg>
 
