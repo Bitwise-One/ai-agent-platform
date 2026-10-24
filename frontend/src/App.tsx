@@ -9,11 +9,12 @@
  */
 
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { AnimatePresence, MotionConfig } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { Shell } from "./components/Shell";
-import { PageShell } from "./components/motion";
+import { PageShell, SplitText } from "./components/motion";
+import { EASE, spring, softSpring } from "./lib/motion";
 import {
   Button,
   Card,
@@ -43,9 +44,14 @@ const MotionLabPage = lazy(() =>
 
 function LabFallback() {
   return (
-    <div className="flex items-center gap-2 py-20 text-body text-ink-tertiary">
+    <motion.div
+      className="flex items-center gap-2 py-20 text-body text-ink-tertiary"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, ease: EASE }}
+    >
       <Spinner size={14} /> 正在加载动效实验室…
-    </div>
+    </motion.div>
   );
 }
 
@@ -61,19 +67,52 @@ function SetupCard({
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-layout px-6">
-      <Card className="w-full max-w-[480px] px-8 py-8">
-        <div className="mb-6">
-          <div className="mb-4 flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-caption font-semibold text-white">
-              AP
-            </span>
-            <span className="text-subtitle text-ink-primary">Agent Platform</span>
+      <motion.div
+        // 引导页是全站「第一印象」：卡片整体轻落，logo 弹一下，标题逐字翻入
+        initial={{ opacity: 0, y: 12, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={softSpring}
+      >
+        <Card className="w-full max-w-[480px] px-8 py-8">
+          <div className="mb-6">
+            <motion.div
+              className="mb-4 flex items-center gap-2.5"
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.34, ease: EASE, delay: 0.1 }}
+            >
+              <motion.span
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-caption font-semibold text-white"
+                initial={{ scale: 0.5, rotate: -8 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={spring}
+              >
+                AP
+              </motion.span>
+              <span className="text-subtitle text-ink-primary">Agent Platform</span>
+            </motion.div>
+            <h1 className="text-title text-ink-primary">
+              <SplitText text={title} stagger={0.05} />
+            </h1>
+            <motion.p
+              className="mt-1.5 text-body text-ink-tertiary"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.34, ease: EASE, delay: 0.24 }}
+            >
+              {description}
+            </motion.p>
           </div>
-          <h1 className="text-title text-ink-primary">{title}</h1>
-          <p className="mt-1.5 text-body text-ink-tertiary">{description}</p>
-        </div>
-        {children}
-      </Card>
+          {/* 表单比标题再晚一拍：视线先落在「这是哪」，再落到「要填什么」 */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.34, ease: EASE, delay: 0.3 }}
+          >
+            {children}
+          </motion.div>
+        </Card>
+      </motion.div>
     </div>
   );
 }
@@ -170,11 +209,21 @@ function Routed() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-layout">
-        <div className="flex items-center gap-2 text-body text-ink-tertiary">
+      <motion.div
+        className="flex min-h-screen items-center justify-center bg-surface-layout"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: EASE }}
+      >
+        <motion.div
+          className="flex items-center gap-2 text-body text-ink-tertiary"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.34, ease: EASE, delay: 0.08 }}
+        >
           <Spinner size={14} /> 正在连接后端…
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
