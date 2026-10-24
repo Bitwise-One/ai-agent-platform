@@ -18,12 +18,13 @@ import { agentsApi, chatApi, streamChat } from "../lib/api";
 import { useAsync } from "../lib/hooks";
 import { EASE, listContainer, listItem } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
-import { AuroraField, EmptyArt, StreamCursor } from "../components/motion";
+import { AuroraField, CountUp, EmptyArt, FadeSwap, Flash, StreamCursor } from "../components/motion";
 import {
   Button,
   Card,
   CardHeader,
   Empty,
+  PageHeader,
   Select,
   StatusTag,
   Textarea,
@@ -249,28 +250,26 @@ export function PlaygroundPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-h1 text-ink-primary">对话调试台</h1>
-          <p className="mt-1.5 text-body text-ink-tertiary">
-            走真实链路：路由决策 → 知识库检索 → 模型生成 → 终态收敛
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            className="h-8 w-[140px]"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as "stream" | "sync")}
-            aria-label="对话模式"
-          >
-            <option value="stream">流式（SSE）</option>
-            <option value="sync">非流式</option>
-          </Select>
-          <Button onClick={reset} disabled={busy}>
-            清空
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="对话调试台"
+        description="走真实链路：路由决策 → 知识库检索 → 模型生成 → 终态收敛"
+        actions={
+          <>
+            <Select
+              className="h-8 w-[140px]"
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "stream" | "sync")}
+              aria-label="对话模式"
+            >
+              <option value="stream">流式（SSE）</option>
+              <option value="sync">非流式</option>
+            </Select>
+            <Button onClick={reset} disabled={busy}>
+              清空
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="flex h-[640px] flex-col">
@@ -400,9 +399,14 @@ export function PlaygroundPage() {
           <Card>
             <CardHeader title="本次执行" description="路由 / 检索 / 终态" />
             {!trace ? (
-              <div className="px-5 py-6 text-caption text-ink-tertiary">
+              <motion.div
+                className="px-5 py-6 text-caption text-ink-tertiary"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+              >
                 还没有执行记录。发送一条消息后这里会显示决策链路。
-              </div>
+              </motion.div>
             ) : (
               <motion.div
                 key={trace.runId}
@@ -489,26 +493,43 @@ export function PlaygroundPage() {
                   {trace.hidden.length === 0 ? (
                     <p className="text-caption text-ink-tertiary">本次没有结构化动作</p>
                   ) : (
-                    <pre className="scroll-slim max-h-32 overflow-auto rounded-control bg-surface-fill px-2.5 py-2 font-mono text-[11px] leading-5 text-ink-secondary">
+                    <motion.pre
+                      className="scroll-slim max-h-32 overflow-auto rounded-control bg-surface-fill px-2.5 py-2 font-mono text-[11px] leading-5 text-ink-secondary"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, ease: EASE, delay: 0.08 }}
+                    >
                       {JSON.stringify(trace.hidden, null, 2)}
-                    </pre>
+                    </motion.pre>
                   )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 border-t border-line-split pt-3 text-caption">
                   <div>
                     <div className="text-ink-tertiary">耗时</div>
-                    <div className="tabular text-ink-primary">{trace.elapsedMs}ms</div>
+                    {/* 数字滚动 + 变化高亮：新一轮执行的耗时「滚」出来，并闪一下引起注意 */}
+                    <Flash value={trace.elapsedMs} className="-mx-1 rounded-control px-1">
+                      <div className="tabular text-ink-primary">
+                        <CountUp value={trace.elapsedMs} duration={0.7} />ms
+                      </div>
+                    </Flash>
                   </div>
                   <div>
                     <div className="text-ink-tertiary">Token</div>
-                    <div className="tabular text-ink-primary">{trace.tokens}</div>
+                    <Flash value={trace.tokens} className="-mx-1 rounded-control px-1">
+                      <div className="tabular text-ink-primary">
+                        <CountUp value={trace.tokens} duration={0.7} />
+                      </div>
+                    </Flash>
                   </div>
                   <div className="col-span-2">
                     <div className="text-ink-tertiary">run_id</div>
-                    <div className="truncate font-mono text-[11px] text-ink-secondary">
-                      {trace.runId || "—"}
-                    </div>
+                    {/* 换 run 时淡出淡入：原地替换文本会「跳」，淡入淡出把「换了个人」变得可见 */}
+                    <FadeSwap id={trace.runId || "none"}>
+                      <div className="truncate font-mono text-[11px] text-ink-secondary">
+                        {trace.runId || "—"}
+                      </div>
+                    </FadeSwap>
                   </div>
                 </div>
 
@@ -517,9 +538,14 @@ export function PlaygroundPage() {
                   正常路由的说明已经出现在上面的「策略」里，再黄色重复一遍会让人误判为告警。
                 */}
                 {trace.reason && trace.status !== "completed" && (
-                  <div className="rounded-control border border-[#FFE58F] bg-[#FFFBE6] px-2.5 py-2 text-caption text-[#D48806]">
+                  <motion.div
+                    className="rounded-control border border-[#FFE58F] bg-[#FFFBE6] px-2.5 py-2 text-caption text-[#D48806]"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: EASE, delay: 0.12 }}
+                  >
                     {trace.reason}
-                  </div>
+                  </motion.div>
                 )}
               </motion.div>
             )}
