@@ -19,13 +19,12 @@ import {
   useMemo,
   useState,
   type ButtonHTMLAttributes,
-  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type HTMLMotionProps } from "framer-motion";
 
 import { EASE } from "../lib/motion";
 import { IconAlert, IconCheck, IconClose } from "./icons";
@@ -208,21 +207,25 @@ export function Switch({
 
 export function Card({
   className,
-  sheen = false,
+  sheen = true,
   children,
   ...rest
-}: HTMLAttributes<HTMLDivElement> & { sheen?: boolean }) {
+}: HTMLMotionProps<"div"> & { sheen?: boolean }) {
   return (
-    <div
+    <motion.div
       className={clsx(
-        "rounded-card border border-line-split bg-surface shadow-card",
+        "card-motion rounded-card border border-line-split bg-surface shadow-card",
         sheen && "card-sheen",
         className,
       )}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -1, transition: { duration: 0.18, ease: EASE } }}
+      transition={{ duration: 0.32, ease: EASE }}
       {...rest}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -236,7 +239,12 @@ export function CardHeader({
   extra?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-line-split px-6 py-4">
+    <motion.div
+      className="card-header-motion flex items-start justify-between gap-4 border-b border-line-split px-6 py-4"
+      initial={{ opacity: 0, y: 3 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: EASE, delay: 0.05 }}
+    >
       <div className="min-w-0">
         <div className="flex items-center gap-2 text-subtitle text-ink-primary">{title}</div>
         {description && (
@@ -244,7 +252,7 @@ export function CardHeader({
         )}
       </div>
       {extra && <div className="flex shrink-0 items-center gap-2">{extra}</div>}
-    </div>
+    </motion.div>
   );
 }
 
