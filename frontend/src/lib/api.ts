@@ -19,6 +19,10 @@ import type {
   KnowledgeBase,
   ModelConfig,
   ModelProbeResult,
+  McpServer,
+  McpTool,
+  McpCallLog,
+  Skill,
   SearchHit,
   StreamEvent,
   Tenant,
@@ -154,6 +158,50 @@ export const agentsApi = {
     }),
   boundKbs: (appId: string, id: string) =>
     api.get<{ kb_ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/knowledge-bases`),
+  boundMcpServers: (appId: string, id: string) =>
+    api.get<{ ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/mcp-servers`),
+  bindMcpServers: (appId: string, id: string, ids: string[]) =>
+    api.put<{ ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/mcp-servers`, { ids }),
+  boundSkills: (appId: string, id: string) =>
+    api.get<{ ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/skills`),
+  bindSkills: (appId: string, id: string, ids: string[]) =>
+    api.put<{ ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/skills`, { ids }),
+  boundMcpTools: (appId: string, id: string) =>
+    api.get<{ ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/mcp-tools`),
+  bindMcpTools: (appId: string, id: string, ids: string[]) =>
+    api.put<{ ids: string[] }>(`/api/v1/apps/${appId}/agents/${id}/mcp-tools`, { ids }),
+  callMcpTool: (appId: string, agentId: string, toolId: string, params: Record<string, unknown>) =>
+    api.post<{ status: string; result: Record<string, unknown>; latency_ms: number }>(
+      `/api/v1/apps/${appId}/agents/${agentId}/mcp-tools/${toolId}/call`,
+      { params },
+    ),
+};
+
+export const integrationsApi = {
+  listMcpServers: () => api.list<McpServer>("/api/v1/mcp-servers?page_size=200"),
+  createMcpServer: (body: Record<string, unknown>) =>
+    api.post<McpServer>("/api/v1/mcp-servers", body),
+  updateMcpServer: (id: string, body: Record<string, unknown>) =>
+    api.patch<McpServer>(`/api/v1/mcp-servers/${id}`, body),
+  removeMcpServer: (id: string) => api.del<unknown>(`/api/v1/mcp-servers/${id}`),
+  discoverMcpTools: (id: string) =>
+    api.post<{ mcp_id: string; tools: McpTool[]; total: number }>(`/api/v1/mcp-servers/${id}/discover`),
+  listMcpTools: (id: string) =>
+    api.get<{ items: McpTool[]; total: number }>(`/api/v1/mcp-servers/${id}/tools`),
+  listMcpCallLogs: (page = 1, status?: "success" | "error") => {
+    const params = new URLSearchParams({ page: String(page), page_size: "20" });
+    if (status) params.set("status", status);
+    return api.get<{ items: McpCallLog[]; total: number; page: number; page_size: number }>(
+      `/api/v1/mcp-servers/calls/logs?${params.toString()}`,
+    );
+  },
+  listSkills: () => api.list<Skill>("/api/v1/skills?page_size=200"),
+  createSkill: (body: Record<string, unknown>) => api.post<Skill>("/api/v1/skills", body),
+  updateSkill: (id: string, body: Record<string, unknown>) =>
+    api.patch<Skill>(`/api/v1/skills/${id}`, body),
+  removeSkill: (id: string) => api.del<unknown>(`/api/v1/skills/${id}`),
+  invokeSkill: (id: string, params: Record<string, unknown>) =>
+    api.post<{ skill_id: string; result: unknown }>(`/api/v1/skills/${id}/invoke`, { params }),
 };
 
 export const workflowsApi = {

@@ -65,6 +65,55 @@ export interface Agent {
   created_at: string;
 }
 
+export interface McpServer {
+  id: string;
+  tenant_id: string;
+  name: string;
+  transport: "stdio" | "sse" | "http" | string;
+  config: Record<string, unknown>;
+  status: "active" | "suspended" | "deleted" | string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpTool {
+  id: string;
+  mcp_id: string;
+  name: string;
+  description: string | null;
+  input_schema: Record<string, unknown>;
+  enabled: boolean;
+  updated_at: string;
+}
+
+export interface McpCallLog {
+  id: string;
+  application_id: string;
+  agent_id: string;
+  mcp_id: string;
+  tool_id: string;
+  request_id: string | null;
+  status: "success" | "error" | string;
+  latency_ms: number;
+  error_code: string | null;
+  input_summary: Record<string, unknown> | null;
+  output_summary: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface Skill {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  instructions: string | null;
+  params_schema: Record<string, unknown> | null;
+  trigger: Record<string, unknown> | null;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type GraphNodeType = "router" | "agent" | "rag" | "guard" | "fallback" | "condition";
 
 export interface GraphNode {

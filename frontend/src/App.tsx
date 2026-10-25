@@ -27,6 +27,7 @@ import {
 } from "./components/ui";
 import { AgentsPage } from "./pages/Agents";
 import { KnowledgePage } from "./pages/Knowledge";
+import { IntegrationsPage } from "./pages/Integrations";
 import { ModelsPage } from "./pages/Models";
 import { OverviewPage } from "./pages/Overview";
 import { PlaygroundPage } from "./pages/Playground";
@@ -308,6 +309,14 @@ function Routed() {
             element={
               <PageShell>
                 <ModelsPage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/integrations"
+            element={
+              <PageShell>
+                <IntegrationsPage />
               </PageShell>
             }
           />

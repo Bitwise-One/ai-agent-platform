@@ -168,6 +168,18 @@ export const IconLayers = (p: IconProps) => (
   </Base>
 );
 
+export const IconPlug = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M8 7V3M16 7V3M6 7h12v4a6 6 0 0 1-12 0V7ZM12 17v4" />
+  </Base>
+);
+
+export const IconPuzzle = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 4h5a3 3 0 1 1 6 0h5v6a3 3 0 1 0 0 6v4H9v-4a3 3 0 1 0-5 0V4Z" />
+  </Base>
+);
+
 export const IconSettings = (p: IconProps) => (
   <Base {...p}>
     <circle cx="12" cy="12" r="3" />

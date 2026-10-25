@@ -31,6 +31,7 @@ pnpm dev            # http://localhost:5173
 | `/workflows` | 工作流列表 | 新建、状态与应用绑定 |
 | `/workflows/:id` | 编排画布 | 拖动节点、拉线连边、路由参数、结构校验、版本发布/回滚 |
 | `/agents` | Agent | 提示词、模型、温度、路由关键词、知识库绑定、默认兜底 |
+| `/integrations` | 工具与 Skills | MCP 服务管理、工具发现与人工确认试调用、脱敏调用日志、Skill 元信息与 WASM 沙箱测试；Agent 编辑中授权绑定 |
 | `/knowledge` | 知识库 | 建库、入库文档、切分预览、检索调试验证召回 |
 | `/models` | 模型目录 | 模型与单价、连通性探测 |
 | `/playground` | 对话调试台 | SSE 流式对话，右侧同步展示路由决策 / RAG 命中 / 隐藏返回 / token |

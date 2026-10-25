@@ -12,7 +12,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
-import { agentsApi, knowledgeApi, modelsApi } from "../lib/api";
+import { agentsApi, integrationsApi, knowledgeApi, modelsApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
 import { listContainer } from "../lib/motion";
 import { popItem } from "../components/motion";
@@ -40,8 +40,8 @@ import {
   taskTone,
   useToast,
 } from "../components/ui";
-import { IconPlus, IconTrash } from "../components/icons";
-import type { Agent } from "../lib/types";
+import { IconPlug, IconPlus, IconPuzzle, IconTrash } from "../components/icons";
+import type { Agent, McpTool } from "../lib/types";
 
 interface FormState {
   name: string;
@@ -51,6 +51,22 @@ interface FormState {
   model_config_id: string;
   is_default: boolean;
   kb_ids: string[];
+  mcp_ids: string[];
+  mcp_tool_ids: string[];
+  skill_ids: string[];
+}
+
+interface AgentBindings {
+  kb_ids: string[];
+  mcp_ids: string[];
+  mcp_tool_ids: string[];
+  skill_ids: string[];
+}
+
+const emptyBindings: AgentBindings = { kb_ids: [], mcp_ids: [], mcp_tool_ids: [], skill_ids: [] };
+
+function sameIds(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((id) => right.includes(id));
 }
 
 const emptyForm: FormState = {
@@ -61,22 +77,31 @@ const emptyForm: FormState = {
   model_config_id: "",
   is_default: false,
   kb_ids: [],
+  mcp_ids: [],
+  mcp_tool_ids: [],
+  skill_ids: [],
 };
 
 export function AgentsPage() {
-  const { app } = useWorkspace();
+  const { app, tenant } = useWorkspace();
   const appId = app?.id ?? "";
   const toast = useToast();
 
   const agents = useAsync(() => agentsApi.list(appId), [appId], { enabled: Boolean(appId) });
   const models = useAsync(() => modelsApi.list(), [], { enabled: Boolean(appId) });
   const kbs = useAsync(() => knowledgeApi.list(), [], { enabled: Boolean(appId) });
+  const mcpServers = useAsync(() => integrationsApi.listMcpServers(), [tenant?.id], { enabled: Boolean(appId && tenant?.id) });
+  const skills = useAsync(() => integrationsApi.listSkills(), [tenant?.id], { enabled: Boolean(appId && tenant?.id) });
+  const [mcpTools, setMcpTools] = useState<McpTool[]>([]);
 
   const [editing, setEditing] = useState<Agent | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [initialBindings, setInitialBindings] = useState<AgentBindings>(emptyBindings);
   const [formError, setFormError] = useState<string | null>(null);
   const { pending, run } = useSubmit();
+  const bindingResourcesLoading = mcpServers.loading || skills.loading;
+  const bindingResourcesError = mcpServers.error || skills.error;
 
   const modelName = useMemo(() => {
     const map = new Map((models.data ?? []).map((m) => [m.id, m]));
@@ -98,18 +123,33 @@ export function AgentsPage() {
     let alive = true;
     void Promise.all(
       rows.map((agent) =>
-        agentsApi
-          .boundKbs(appId, agent.id)
-          .then((res) => [agent.id, res.kb_ids] as const)
-          .catch(() => [agent.id, [] as string[]] as const),
+        Promise.all([
+          agentsApi.boundKbs(appId, agent.id).catch(() => ({ kb_ids: [] as string[] })),
+          agentsApi.boundMcpServers(appId, agent.id).catch(() => ({ ids: [] as string[] })),
+          agentsApi.boundSkills(appId, agent.id).catch(() => ({ ids: [] as string[] })),
+          agentsApi.boundMcpTools(appId, agent.id).catch(() => ({ ids: [] as string[] })),
+        ]).then(([kbsResult, mcpResult, skillResult, toolResult]) => [
+          agent.id,
+          { kb: kbsResult.kb_ids, mcp: mcpResult.ids, skill: skillResult.ids, tools: toolResult.ids },
+        ] as const),
       ),
     ).then((entries) => {
-      if (alive) setBindings(Object.fromEntries(entries));
+      if (alive) {
+        setBindings(Object.fromEntries(entries.map(([id, value]) => [id, value.kb])));
+      }
     });
     return () => {
       alive = false;
     };
   }, [agentRows, appId]);
+
+  useEffect(() => {
+    const servers = (mcpServers.data ?? []).filter((server) => server.status === "active");
+    let alive = true;
+    void Promise.all(servers.map((server) => integrationsApi.listMcpTools(server.id).catch(() => ({ items: [] as McpTool[] }))))
+      .then((responses) => { if (alive) setMcpTools(responses.flatMap((response) => response.items)); });
+    return () => { alive = false; };
+  }, [mcpServers.data]);
 
   const kbNames = useMemo(() => {
     const map = new Map((kbs.data ?? []).map((kb) => [kb.id, kb.name]));
@@ -118,6 +158,7 @@ export function AgentsPage() {
 
   const openCreate = () => {
     setEditing(null);
+    setInitialBindings(emptyBindings);
     setForm({ ...emptyForm, model_config_id: models.data?.[0]?.id ?? "" });
     setFormError(null);
     setOpen(true);
@@ -127,11 +168,18 @@ export function AgentsPage() {
     setEditing(agent);
     setFormError(null);
     // 先回显绑定，再打开弹窗：避免用户看到空勾选后误保存清空绑定
-    let bound: string[] = [];
+    let bound = { kb: [] as string[], mcp: [] as string[], skills: [] as string[], tools: [] as string[] };
     try {
-      bound = (await agentsApi.boundKbs(appId, agent.id)).kb_ids;
+      const [kbsResult, mcpResult, skillsResult, toolsResult] = await Promise.all([
+        agentsApi.boundKbs(appId, agent.id),
+        agentsApi.boundMcpServers(appId, agent.id),
+        agentsApi.boundSkills(appId, agent.id),
+        agentsApi.boundMcpTools(appId, agent.id),
+      ]);
+      bound = { kb: kbsResult.kb_ids, mcp: mcpResult.ids, skills: skillsResult.ids, tools: toolsResult.ids };
     } catch {
-      bound = [];
+      toast.push("无法读取 Agent 的资源绑定，请重试后再编辑", "error");
+      return;
     }
     setForm({
       name: agent.name,
@@ -140,8 +188,12 @@ export function AgentsPage() {
       temperature: agent.temperature,
       model_config_id: agent.model_config_id ?? "",
       is_default: agent.is_default,
-      kb_ids: bound,
+      kb_ids: bound.kb,
+      mcp_ids: bound.mcp,
+      skill_ids: bound.skills,
+      mcp_tool_ids: bound.tools,
     });
+    setInitialBindings({ kb_ids: bound.kb, mcp_ids: bound.mcp, skill_ids: bound.skills, mcp_tool_ids: bound.tools });
     setOpen(true);
   };
 
@@ -167,10 +219,17 @@ export function AgentsPage() {
     await run(async () => {
       if (editing) {
         await agentsApi.update(appId, editing.id, payload);
-        await agentsApi.bindKbs(appId, editing.id, form.kb_ids);
+        if (!sameIds(form.kb_ids, initialBindings.kb_ids)) await agentsApi.bindKbs(appId, editing.id, form.kb_ids);
+        if (!sameIds(form.mcp_ids, initialBindings.mcp_ids)) await agentsApi.bindMcpServers(appId, editing.id, form.mcp_ids);
+        if (!sameIds(form.skill_ids, initialBindings.skill_ids)) await agentsApi.bindSkills(appId, editing.id, form.skill_ids);
+        if (!sameIds(form.mcp_tool_ids, initialBindings.mcp_tool_ids)) await agentsApi.bindMcpTools(appId, editing.id, form.mcp_tool_ids);
       } else {
         const created = await agentsApi.create(appId, payload);
-        await agentsApi.bindKbs(appId, created.id, form.kb_ids);
+        setEditing(created);
+        if (form.kb_ids.length) await agentsApi.bindKbs(appId, created.id, form.kb_ids);
+        if (form.mcp_ids.length) await agentsApi.bindMcpServers(appId, created.id, form.mcp_ids);
+        if (form.skill_ids.length) await agentsApi.bindSkills(appId, created.id, form.skill_ids);
+        if (form.mcp_tool_ids.length) await agentsApi.bindMcpTools(appId, created.id, form.mcp_tool_ids);
       }
     });
   };
@@ -206,11 +265,23 @@ export function AgentsPage() {
     }));
   };
 
+  const toggleBinding = (key: "mcp_ids" | "mcp_tool_ids" | "skill_ids", id: string) => {
+    setForm((previous) => {
+      const selected = previous[key];
+      const next = selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id];
+      if (key === "mcp_ids") {
+        const allowedTools = new Set(mcpTools.filter((tool) => next.includes(tool.mcp_id)).map((tool) => tool.id));
+        return { ...previous, mcp_ids: next, mcp_tool_ids: previous.mcp_tool_ids.filter((toolId) => allowedTools.has(toolId)) };
+      }
+      return { ...previous, [key]: next };
+    });
+  };
+
   return (
     <div>
       <PageHeader
         title="Agent"
-        description="应用内的智能体：提示词、模型、知识库与路由关键词"
+        description="配置 Agent 的提示词、路由与可调用的知识、MCP 工具和 Skills"
         actions={
           <Button variant="primary" icon={<IconPlus size={14} />} onClick={openCreate}>
             新建 Agent
@@ -359,7 +430,7 @@ export function AgentsPage() {
         footer={
           <>
             <Button onClick={() => setOpen(false)}>取消</Button>
-            <Button variant="primary" loading={pending} onClick={() => void onSubmit()}>
+            <Button variant="primary" loading={pending} disabled={bindingResourcesLoading || Boolean(bindingResourcesError)} onClick={() => void onSubmit()}>
               保存
             </Button>
           </>
@@ -367,6 +438,8 @@ export function AgentsPage() {
       >
         <div className="space-y-4">
           {formError && <ErrorNote message={formError} />}
+          {bindingResourcesLoading && <p className="text-caption text-ink-tertiary">正在读取 MCP 服务与 Skills…</p>}
+          {bindingResourcesError && <ErrorNote message={bindingResourcesError} onRetry={() => void Promise.all([mcpServers.reload(), skills.reload()])} />}
           <div className="grid grid-cols-2 gap-4">
             <Field label="名称" required>
               <Input
@@ -450,6 +523,60 @@ export function AgentsPage() {
               </div>
             )}
           </Field>
+
+          <div className="space-y-4 rounded-control border border-line-split bg-surface-fill p-3">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-body font-medium text-ink-primary"><IconPlug size={14} /> MCP 服务</div>
+              {mcpServers.error ? <p className="text-caption text-state-error-fg">{mcpServers.error}</p> : (mcpServers.data ?? []).filter((server) => server.status !== "deleted").length === 0 ? (
+                <p className="text-caption text-ink-tertiary">尚未配置 MCP 服务</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {(mcpServers.data ?? []).filter((server) => server.status !== "deleted").map((server) => (
+                    <label key={server.id} className="flex cursor-pointer items-center gap-2 rounded-control border border-line-split bg-surface-fill px-2.5 py-2 text-caption text-ink-secondary hover:border-brand-300">
+                      <input type="checkbox" className="accent-brand-500" checked={form.mcp_ids.includes(server.id)} onChange={() => toggleBinding("mcp_ids", server.id)} />
+                      <span className="min-w-0 flex-1 truncate">{server.name}</span>
+                      {server.status !== "active" && <span className="text-[10px] text-state-warning-fg">暂停</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {form.mcp_ids.length > 0 && (
+              <div>
+                <div className="mb-2 text-caption font-medium text-ink-secondary">允许调用的工具</div>
+                {mcpTools.filter((tool) => form.mcp_ids.includes(tool.mcp_id)).length === 0 ? (
+                  <p className="text-caption text-ink-tertiary">所选服务尚未发现可用工具，可先在「工具与 Skills」中执行工具发现。</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {mcpTools.filter((tool) => form.mcp_ids.includes(tool.mcp_id)).map((tool) => (
+                      <label key={tool.id} className="flex cursor-pointer items-start gap-2 rounded-control border border-line-split bg-surface-fill px-2.5 py-2 hover:border-brand-300">
+                        <input type="checkbox" className="mt-0.5 accent-brand-500" checked={form.mcp_tool_ids.includes(tool.id)} onChange={() => toggleBinding("mcp_tool_ids", tool.id)} />
+                        <span className="min-w-0"><span className="block truncate font-mono text-caption text-ink-primary">{tool.name}</span><span className="block truncate text-[11px] text-ink-tertiary">{tool.description || "MCP 工具"}</span></span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-body font-medium text-ink-primary"><IconPuzzle size={14} /> Skills</div>
+              {skills.error ? <p className="text-caption text-state-error-fg">{skills.error}</p> : (skills.data ?? []).length === 0 ? (
+                <p className="text-caption text-ink-tertiary">尚未注册 Skill</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {(skills.data ?? []).map((skill) => (
+                    <label key={skill.id} className="flex cursor-pointer items-center gap-2 rounded-control border border-line-split bg-surface-fill px-2.5 py-2 text-caption text-ink-secondary hover:border-brand-300">
+                      <input type="checkbox" className="accent-brand-500" checked={form.skill_ids.includes(skill.id)} onChange={() => toggleBinding("skill_ids", skill.id)} />
+                      <span className="min-w-0 flex-1 truncate">{skill.name}</span>
+                      <span className="text-[10px] text-ink-tertiary">{skill.source === "builtin" ? "内置" : "自定义"}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="flex items-center justify-between rounded-control bg-surface-fill px-3 py-2.5">
             <div>
