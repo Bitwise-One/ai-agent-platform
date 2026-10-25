@@ -49,6 +49,7 @@ class Skill(Base, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, comment="所属租户（RLS 依赖）")
     name: Mapped[str] = mapped_column(String(128), nullable=False, comment="技能名称")
     description: Mapped[str | None] = mapped_column(Text, comment="技能描述")
+    instructions: Mapped[str | None] = mapped_column(Text, comment="技能触发后注入 Agent 的受控指令，不执行任意代码")
     params_schema: Mapped[dict | None] = mapped_column(JSONType, comment="入参 JSON Schema（校验与渲染表单用）")
     trigger: Mapped[dict | None] = mapped_column(JSONType, comment="触发条件（关键词/规则）")
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="local", comment="来源：local（自建）/marketplace（内置）")

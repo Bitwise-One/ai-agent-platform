@@ -124,3 +124,39 @@ async def test_stdio_discovery_is_delegated_to_worker(client):
     )
     response = await client.post(f"/api/v1/mcp-servers/{created.json()['data']['id']}/discover", headers=headers)
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_skill_instructions_are_registered_and_triggered_per_agent(client):
+    from app.graph.runners.llm import _active_skill_instructions
+    from app.graph.state import AgentState
+
+    _, app, agent, headers = await bootstrap(client, "t-skill-runtime")
+    created = await client.post(
+        "/api/v1/skills",
+        json={
+            "name": "订单查询",
+            "description": "查询订单状态",
+            "instructions": "先确认订单号，再总结查询结果。",
+            "trigger": {"keywords": ["订单"]},
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200, created.text
+    skill = created.json()["data"]
+    assert skill["instructions"] == "先确认订单号，再总结查询结果。"
+    bound = await client.put(
+        f"/api/v1/apps/{app}/agents/{agent}/skills",
+        json={"ids": [skill["id"]]},
+        headers=headers,
+    )
+    assert bound.status_code == 200
+
+    state = AgentState(
+        user_input="帮我查订单状态",
+        skills_by_agent={agent: [{"name": skill["name"], "instructions": skill["instructions"], "trigger": skill["trigger"]}]},
+    )
+    assert "先确认订单号" in _active_skill_instructions(agent, state)
+    state["user_input"] = "今天天气如何"
+    assert _active_skill_instructions(agent, state) == ""
+    assert _active_skill_instructions("different-agent", state) == ""

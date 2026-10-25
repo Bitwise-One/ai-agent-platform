@@ -25,7 +25,17 @@ from app.graph.runner import RunResult, run_workflow
 from app.graph.runners.llm import llm_agent_runner
 from app.graph.spec import WorkflowSpec
 from app.knowledge import service as kb_service
-from app.models import Application, Conversation, HiddenResponse, TaskRun, TaskStatus, Workflow
+from app.models import (
+    Agent,
+    AgentSkill,
+    Application,
+    Conversation,
+    HiddenResponse,
+    Skill,
+    TaskRun,
+    TaskStatus,
+    Workflow,
+)
 from app.schemas.conversation import ChatRequest, ChatResponse, ConversationCreate
 from app.services import agents as agent_service
 from app.services import conversations as conv_service
@@ -44,6 +54,7 @@ class PreparedChat:
     spec: WorkflowSpec
     retriever: RagRetriever | None
     runner: AgentRunner
+    skills_by_agent: dict[str, list[dict]]
 
 
 # ---------------------------------------------------------------- 准备阶段
@@ -134,12 +145,30 @@ async def prepare_chat(
     await conv_service.start_run(session, run)
 
     spec = await _load_spec(session, ctx.tenant_id, app)
+    skill_rows = await session.execute(
+        select(AgentSkill.agent_id, Skill.name, Skill.instructions, Skill.trigger)
+        .join(Skill, Skill.id == AgentSkill.skill_id)
+        .join(Agent, Agent.id == AgentSkill.agent_id)
+        .where(
+            Agent.tenant_id == ctx.tenant_id,
+            Agent.application_id == app.id,
+            Agent.deleted_at.is_(None),
+            Skill.tenant_id == ctx.tenant_id,
+            Skill.instructions.is_not(None),
+        )
+    )
+    skills_by_agent: dict[str, list[dict]] = {}
+    for agent_id, name, instructions, trigger in skill_rows:
+        skills_by_agent.setdefault(str(agent_id), []).append(
+            {"name": name, "instructions": instructions, "trigger": trigger or {}}
+        )
     return PreparedChat(
         conversation=conversation,
         run=run,
         spec=spec,
         retriever=_make_retriever(session, ctx.tenant_id),
         runner=runner or llm_agent_runner,
+        skills_by_agent=skills_by_agent,
     )
 
 
@@ -164,6 +193,7 @@ async def _execute(
             runner=prepared.runner,
             retriever=prepared.retriever,
             emitter=emitter,
+            skills_by_agent=prepared.skills_by_agent,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("工作流调度异常")

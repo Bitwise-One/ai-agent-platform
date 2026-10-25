@@ -171,7 +171,7 @@ async def delete_mcp(session: AsyncSession, tenant_id: uuid.UUID, mcp_id: uuid.U
 
 
 async def create_skill(session: AsyncSession, tenant_id: uuid.UUID, payload: SkillCreate) -> Skill:
-    row = Skill(tenant_id=tenant_id, name=payload.name, description=payload.description, params_schema=payload.params_schema, trigger=payload.trigger)
+    row = Skill(tenant_id=tenant_id, name=payload.name, description=payload.description, instructions=payload.instructions, params_schema=payload.params_schema, trigger=payload.trigger)
     session.add(row)
     await session.flush()
     return row

@@ -66,6 +66,9 @@ class AgentState(TypedDict, total=False):
     # ---- 隐藏返回（不进聊天框）----
     hidden_responses: Annotated[list[dict[str, Any]], merge_messages]
 
+    # Bound instruction Skills loaded within tenant + application scope.
+    skills_by_agent: dict[str, list[dict[str, Any]]]
+
     # ---- 计量 ----
     token_usage: int
 
@@ -78,6 +81,7 @@ def initial_state(
     user_id: str,
     run_id: str,
     user_input: str,
+    skills_by_agent: dict[str, list[dict[str, Any]]] | None = None,
 ) -> AgentState:
     return AgentState(
         tenant_id=tenant_id,
@@ -86,6 +90,7 @@ def initial_state(
         user_id=user_id,
         run_id=run_id,
         user_input=user_input,
+        skills_by_agent=skills_by_agent or {},
         messages=[{"role": "user", "content": user_input}],
         iteration_count=1,
         token_usage=0,

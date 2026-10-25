@@ -76,6 +76,7 @@ class McpToolBind(BaseModel):
 class SkillCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = None
+    instructions: str | None = Field(default=None, max_length=8000)
     params_schema: dict[str, Any] | None = None
     trigger: dict[str, Any] | None = None
 
@@ -83,6 +84,7 @@ class SkillCreate(BaseModel):
 class SkillUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = None
+    instructions: str | None = Field(default=None, max_length=8000)
     params_schema: dict[str, Any] | None = None
     trigger: dict[str, Any] | None = None
 
@@ -94,6 +96,7 @@ class SkillOut(BaseModel):
     tenant_id: uuid.UUID
     name: str
     description: str | None
+    instructions: str | None
     params_schema: dict[str, Any] | None
     trigger: dict[str, Any] | None
     source: str
