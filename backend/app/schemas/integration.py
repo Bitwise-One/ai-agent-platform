@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import re
 import uuid
 from datetime import datetime
 from typing import Any, Literal
@@ -9,6 +10,34 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MAX_WASM_MODULE_BYTES = 256 * 1024
+_MCP_SECRET_REF = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_MCP_INLINE_SECRET_KEYS = {"authorization", "headers", "password", "token", "api_key", "client_secret", "secret"}
+
+
+def _validate_mcp_config(config: dict[str, Any] | None) -> dict[str, Any] | None:
+    if config is None:
+        return config
+
+    def inspect(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if isinstance(key, str) and key.lower() in _MCP_INLINE_SECRET_KEYS:
+                    raise ValueError("MCP 凭据不得明文放入 config，请使用 auth.secret_ref")
+                inspect(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect(child)
+
+    inspect(config)
+    auth = config.get("auth")
+    if auth is not None:
+        if not isinstance(auth, dict) or set(auth) != {"scheme", "secret_ref"}:
+            raise ValueError("auth 仅支持 scheme=bearer 与 secret_ref")
+        if auth.get("scheme") != "bearer" or not isinstance(auth.get("secret_ref"), str):
+            raise ValueError("MCP auth 仅支持 Bearer secret_ref")
+        if not _MCP_SECRET_REF.fullmatch(auth["secret_ref"]):
+            raise ValueError("secret_ref 只能包含大写字母、数字和下划线，且以字母开头")
+    return config
 
 
 def _validate_wasm_base64(value: str | None) -> str | None:
@@ -33,10 +62,7 @@ class McpServerCreate(BaseModel):
     @field_validator("config")
     @classmethod
     def reject_inline_secrets(cls, value: dict[str, Any]) -> dict[str, Any]:
-        forbidden = {"password", "secret", "api_key", "token", "authorization", "headers"}
-        if forbidden.intersection(key.lower() for key in value):
-            raise ValueError("敏感凭据不得放入 config，请使用 Secret Manager 引用")
-        return value
+        return _validate_mcp_config(value) or {}
 
 
 class McpServerUpdate(BaseModel):
@@ -48,11 +74,7 @@ class McpServerUpdate(BaseModel):
     @field_validator("config")
     @classmethod
     def reject_inline_secrets(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
-        if value is not None:
-            forbidden = {"password", "secret", "api_key", "token", "authorization", "headers"}
-            if forbidden.intersection(key.lower() for key in value):
-                raise ValueError("敏感凭据不得放入 config，请使用 Secret Manager 引用")
-        return value
+        return _validate_mcp_config(value)
 
 
 class McpServerOut(BaseModel):

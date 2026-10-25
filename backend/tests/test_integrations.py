@@ -4,6 +4,9 @@ import base64
 
 import pytest
 
+from app.core.errors import AppError
+from app.models import McpServer
+from app.schemas.integration import McpServerCreate
 from app.services import integrations as integration_service
 
 
@@ -54,6 +57,68 @@ async def test_mcp_rejects_inline_credentials(client):
         headers=headers,
     )
     assert response.status_code == 422
+
+
+def test_mcp_auth_config_accepts_reference_and_rejects_nested_secret():
+    config = {"url": "https://mcp.example/mcp", "auth": {"scheme": "bearer", "secret_ref": "CRM_READONLY"}}
+    assert McpServerCreate(name="CRM", transport="http", config=config).config == config
+    with pytest.raises(ValueError, match="不得明文"):
+        McpServerCreate(
+            name="CRM",
+            transport="http",
+            config={"url": "https://mcp.example/mcp", "extra": {"headers": {"Authorization": "Bearer leak"}}},
+        )
+
+
+def test_mcp_secret_reference_resolves_only_at_runtime(monkeypatch):
+    monkeypatch.setenv("MCP_SECRET_CRM_READONLY", "test-token-value")
+    server = McpServer(
+        transport="http",
+        config={"auth": {"scheme": "bearer", "secret_ref": "CRM_READONLY"}},
+    )
+    headers = integration_service._mcp_auth_headers(server)
+    assert headers == {"Authorization": "Bearer test-token-value"}
+    assert "test-token-value" not in str(server.config)
+
+
+@pytest.mark.asyncio
+async def test_mcp_discovery_fails_closed_for_missing_secret(monkeypatch):
+    monkeypatch.delenv("MCP_SECRET_CRM_MISSING", raising=False)
+
+    async def skip_dns(_url):
+        return None
+
+    monkeypatch.setattr(integration_service, "_validate_mcp_endpoint", skip_dns)
+    server = McpServer(
+        transport="http",
+        config={
+            "url": "https://mcp.example/mcp",
+            "auth": {"scheme": "bearer", "secret_ref": "CRM_MISSING"},
+        },
+    )
+    with pytest.raises(AppError, match="引用未配置"):
+        await integration_service._fetch_mcp_tools(server)
+
+
+@pytest.mark.asyncio
+async def test_mcp_api_stores_and_returns_only_secret_reference(client, monkeypatch):
+    _, _, _, headers = await bootstrap(client, "t-mcp-secret-ref")
+    monkeypatch.setenv("MCP_SECRET_INTERNAL_API", "never-return-this")
+    response = await client.post(
+        "/api/v1/mcp-servers",
+        json={
+            "name": "内部服务",
+            "transport": "http",
+            "config": {
+                "url": "https://mcp.example/mcp",
+                "auth": {"scheme": "bearer", "secret_ref": "INTERNAL_API"},
+            },
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["config"]["auth"]["secret_ref"] == "INTERNAL_API"
+    assert "never-return-this" not in response.text
 
 
 @pytest.mark.asyncio

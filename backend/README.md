@@ -55,6 +55,10 @@ uv run alembic check                 # 校验「模型 vs 迁移」零差异
 
 每次调用限制模块 256 KiB、输入 64 KiB、输出 64 KiB、线性内存 16 MiB、燃料 1,000,000，并发执行槽 4。仅通过 `POST /api/v1/skills/{skill_id}/invoke` 调用；上传字段为 `wasm_module_base64`，该字段不会在 Skill 查询接口中回显。
 
+## MCP 凭据
+
+MCP 配置只保存凭据引用，例如 `{"url":"https://mcp.example/mcp","auth":{"scheme":"bearer","secret_ref":"CRM_READONLY"}}`。实际令牌由部署环境注入为 `MCP_SECRET_CRM_READONLY`；请求时才注入 Bearer 请求头，管理接口只回显引用。轮换时更新部署 Secret 并滚动重启服务，禁止把实际令牌写入 MCP `config`、仓库或日志。
+
 ## 接口速览
 
 ```

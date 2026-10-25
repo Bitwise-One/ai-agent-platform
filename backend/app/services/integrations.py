@@ -6,6 +6,7 @@ import asyncio
 import base64
 import ipaddress
 import json
+import os
 import socket
 import uuid
 from typing import Any, TypeVar
@@ -47,6 +48,19 @@ async def _validate_mcp_endpoint(url: str) -> None:
             raise AppError(10003, "MCP endpoint 不允许访问非公网地址", 400)
 
 
+def _mcp_auth_headers(server: McpServer) -> dict[str, str]:
+    auth = server.config.get("auth") or {}
+    if not auth:
+        return {}
+    secret_ref = auth["secret_ref"]
+    secret = os.environ.get(f"MCP_SECRET_{secret_ref}")
+    if not secret:
+        raise AppError(10004, f"MCP Secret Manager 引用未配置: {secret_ref}", 409)
+    if "\r" in secret or "\n" in secret:
+        raise AppError(10001, "MCP Bearer 凭据格式非法", 500)
+    return {"Authorization": f"Bearer {secret}"}
+
+
 async def _fetch_mcp_tools(server: McpServer) -> list[dict]:
     """Use the official MCP client; the API process never launches stdio commands."""
     if server.transport == "stdio":
@@ -55,6 +69,7 @@ async def _fetch_mcp_tools(server: McpServer) -> list[dict]:
     if not isinstance(url, str):
         raise AppError(10001, "MCP config 必须包含 endpoint url", 400)
     await _validate_mcp_endpoint(url)
+    headers = _mcp_auth_headers(server)
 
     from mcp.client.session import ClientSession
 
@@ -62,15 +77,22 @@ async def _fetch_mcp_tools(server: McpServer) -> list[dict]:
         if server.transport == "sse":
             from mcp.client.sse import sse_client
 
-            transport_context = sse_client(url, timeout=5, sse_read_timeout=10)
+            transport_context = sse_client(url, headers=headers, timeout=5, sse_read_timeout=10)
         else:
             from mcp.client.streamable_http import streamable_http_client
+            from mcp.shared._httpx_utils import create_mcp_http_client
 
-            transport_context = streamable_http_client(url)
-        async with transport_context as (read_stream, write_stream, *_):
-            async with ClientSession(read_stream, write_stream) as client:
-                await client.initialize()
-                result = await client.list_tools()
+            async with create_mcp_http_client(headers=headers) as http_client:
+                transport_context = streamable_http_client(url, http_client=http_client)
+                async with transport_context as (read_stream, write_stream, *_):
+                    async with ClientSession(read_stream, write_stream) as client:
+                        await client.initialize()
+                        result = await client.list_tools()
+        if server.transport == "sse":
+            async with transport_context as (read_stream, write_stream):
+                async with ClientSession(read_stream, write_stream) as client:
+                    await client.initialize()
+                    result = await client.list_tools()
     tools = []
     for item in result.tools:
         schema = item.input_schema if isinstance(item.input_schema, dict) else {}
