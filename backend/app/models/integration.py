@@ -3,7 +3,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin, JSONType, TimestampMixin
@@ -20,6 +30,19 @@ class McpServer(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", comment="服务状态：active/suspended/deleted")
 
 
+class McpToolRecord(Base, TimestampMixin):
+    __tablename__ = "mcp_tool"
+    __table_args__ = (UniqueConstraint("mcp_id", "name", name="uq_mcp_tool_server_name"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, comment="主键，UUID")
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, comment="所属租户（RLS 依赖）")
+    mcp_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mcp_server.id", ondelete="CASCADE"), nullable=False, index=True, comment="所属 MCP 服务")
+    name: Mapped[str] = mapped_column(String(128), nullable=False, comment="远端工具名称（服务内唯一）")
+    description: Mapped[str | None] = mapped_column(Text, comment="远端工具说明，视为不可信数据")
+    input_schema: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict, comment="远端工具参数 JSON Schema，调用前需校验")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, comment="是否允许 Agent 绑定及调用")
+
+
 class Skill(Base, TimestampMixin):
     __tablename__ = "skill"
 
@@ -27,6 +50,8 @@ class Skill(Base, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, comment="所属租户（RLS 依赖）")
     name: Mapped[str] = mapped_column(String(128), nullable=False, comment="技能名称")
     description: Mapped[str | None] = mapped_column(Text, comment="技能描述")
+    instructions: Mapped[str | None] = mapped_column(Text, comment="技能触发后注入 Agent 的受控指令，不执行任意代码")
+    wasm_module: Mapped[bytes | None] = mapped_column(LargeBinary, comment="无宿主导入的 WebAssembly Skill 模块，执行受燃料与内存限制")
     params_schema: Mapped[dict | None] = mapped_column(JSONType, comment="入参 JSON Schema（校验与渲染表单用）")
     trigger: Mapped[dict | None] = mapped_column(JSONType, comment="触发条件（关键词/规则）")
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="local", comment="来源：local（自建）/marketplace（内置）")
@@ -81,6 +106,13 @@ class AgentMcp(Base):
 
     agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent.id"), primary_key=True, comment="关联 Agent（联合主键）")
     mcp_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mcp_server.id"), primary_key=True, comment="关联 MCP 服务（联合主键）")
+
+
+class AgentMcpTool(Base):
+    __tablename__ = "agent_mcp_tool"
+
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent.id", ondelete="CASCADE"), primary_key=True, comment="关联 Agent（联合主键）")
+    tool_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mcp_tool.id", ondelete="CASCADE"), primary_key=True, comment="关联已注册 MCP 工具（联合主键）")
 
 
 class AgentSkill(Base):

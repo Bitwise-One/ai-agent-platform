@@ -17,7 +17,7 @@ uv run uvicorn app.main:app --reload     # 启动，文档 http://127.0.0.1:8000
 测试与检查：
 
 ```bash
-uv run pytest                        # 45 个用例
+uv run pytest                        # 全部后端测试
 uv run ruff check app tests alembic
 uv run alembic check                 # 校验「模型 vs 迁移」零差异
 ```
@@ -48,6 +48,16 @@ uv run alembic check                 # 校验「模型 vs 迁移」零差异
 | Agent 配置 | `app/services/agents.py` | CRUD + 知识库绑定 + `model_config_id` 归属校验（防跨租户蹭额度） |
 | 知识库 RAG | `app/knowledge/` | 切分（滑窗+重叠）→ 向量化 → 余弦检索 → 注入 system 提示（标注为不可信数据） |
 | 知识库接口 | `app/api/v1/knowledge.py` | 库/文档 CRUD、检索调试（返回命中片段与耗时） |
+
+## Skill 沙箱 ABI
+
+本地可执行 Skill 使用 WebAssembly 模块，不接受 Python/本机可执行文件。模块不能声明任何宿主导入（包括 WASI），并需导出 `memory`、`alloc(i32) -> i32`、`run(i32, i32) -> i64`。平台把 UTF-8 JSON 参数写入 `alloc` 返回的地址；`run` 返回值高 32 位为 JSON 输出地址、低 32 位为字节长度，输出必须是 JSON 对象。
+
+每次调用限制模块 256 KiB、输入 64 KiB、输出 64 KiB、线性内存 16 MiB、燃料 1,000,000，并发执行槽 4。仅通过 `POST /api/v1/skills/{skill_id}/invoke` 调用；上传字段为 `wasm_module_base64`，该字段不会在 Skill 查询接口中回显。
+
+## MCP 凭据
+
+MCP 配置只保存凭据引用，例如 `{"url":"https://mcp.example/mcp","auth":{"scheme":"bearer","secret_ref":"CRM_READONLY"}}`。实际令牌由部署环境注入为 `MCP_SECRET_CRM_READONLY`；请求时才注入 Bearer 请求头，管理接口只回显引用。轮换时更新部署 Secret 并滚动重启服务，禁止把实际令牌写入 MCP `config`、仓库或日志。
 
 ## 接口速览
 

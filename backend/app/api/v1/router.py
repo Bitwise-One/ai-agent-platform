@@ -12,6 +12,7 @@ from app.api.v1 import (
     applications,
     chat,
     conversations,
+    integrations,
     knowledge,
     models,
     tenants,
@@ -22,6 +23,8 @@ api_router = APIRouter()
 api_router.include_router(tenants.router)
 api_router.include_router(applications.router)
 api_router.include_router(models.router)
+api_router.include_router(integrations.mcp_router)
+api_router.include_router(integrations.skill_router)
 api_router.include_router(agents.router)
 api_router.include_router(workflows.router)
 api_router.include_router(knowledge.router)

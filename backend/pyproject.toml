@@ -17,6 +17,9 @@ dependencies = [
     "python-multipart>=0.0.12",
     "langgraph>=0.2.60",
     "langchain-core>=0.3.28",
+    "mcp>=2.3.0",
+    "wasmtime>=50.0.1",
+    "jsonschema>=4.26.0",
 ]
 
 [dependency-groups]

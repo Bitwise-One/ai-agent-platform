@@ -53,6 +53,7 @@ async def run_workflow(
     emitter: EventEmitter | None = None,
     max_iterations: int | None = None,
     timeout_ms: int | None = None,
+    skills_by_agent: dict[str, list[dict]] | None = None,
 ) -> RunResult:
     """执行一次工作流。
 
@@ -86,6 +87,7 @@ async def run_workflow(
         user_id=user_id,
         run_id=run_id,
         user_input=user_input,
+        skills_by_agent=skills_by_agent,
     )
 
     try:
