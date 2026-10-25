@@ -20,10 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ContextDep, DbDep, RequestContext, get_request_id
 from app.schemas.common import ApiResponse
-from app.schemas.conversation import ChatRequest, ChatResponse
+from app.schemas.conversation import ChatRequest, ChatResponse, HiddenActionConsumeRequest
 from app.services import chat as chat_service
 
 router = APIRouter(prefix="/apps", tags=["chat"])
+action_router = APIRouter(prefix="/hidden-actions", tags=["hidden-actions"])
 
 
 @router.post("/{app_id}/chat", response_model=ApiResponse[ChatResponse])
@@ -37,6 +38,21 @@ async def chat(
     """非流式对话：阻塞直到图执行完成。"""
     result = await chat_service.chat(db, ctx, app_id, payload)
     return ApiResponse(data=result, request_id=get_request_id(request))
+
+
+@action_router.post("/consume", response_model=ApiResponse[dict])
+async def consume_hidden_action(
+    payload: HiddenActionConsumeRequest,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    if ctx.app_id is None or ctx.user_id is None:
+        from app.core.errors import AppError
+
+        raise AppError(10001, "消费隐藏动作必须提供已认证的应用用户上下文", 401)
+    data = await chat_service.consume_hidden_action(db, ctx, ctx.app_id, payload.token)
+    return ApiResponse(data=data, request_id=get_request_id(request))
 
 
 def _format_sse(event: dict) -> str:

@@ -237,6 +237,54 @@ async def test_chat_stream_emits_sse_events(client):
 
 
 @pytest.mark.asyncio
+async def test_hidden_action_has_capability_token_and_is_consumed_once(client):
+    from app.graph.builder import AgentResult
+
+    tenant, app_id = await _bootstrap(client, "t-hidden-token")
+    headers = {TENANT_HEADER: tenant, "X-App-Id": app_id}
+
+    async def hidden_runner(_agent, _state):
+        return AgentResult(
+            reply="已打开表单。",
+            hidden=[{"action": "open_form", "payload": {"form_id": "booking"}}],
+        )
+
+    # Inject the runner through the existing chat service seam for this request.
+    from app.services import chat as chat_service
+
+    original_chat = chat_service.chat
+
+    async def _chat(db, ctx, requested_app_id, payload, *, runner=None):
+        return await original_chat(db, ctx, requested_app_id, payload, runner=hidden_runner)
+
+    chat_service.chat = _chat
+    try:
+        response = await client.post(
+            f"/api/v1/apps/{app_id}/chat",
+            json={"user_id": "u-hidden", "message": "请打开预约表单"},
+            headers=headers,
+        )
+    finally:
+        chat_service.chat = original_chat
+    assert response.status_code == 200, response.text
+    hidden = response.json()["data"]["hidden_responses"][0]
+    assert hidden["type"] == "hidden"
+    assert hidden["channel"] == "system"
+    assert hidden["event"] == "ui_action"
+    assert hidden["meta"]["capability"]["action"] == "open_form"
+    token = hidden["meta"]["action_token"]
+
+    from app.core.security import issue_token
+
+    user_headers = {**headers, "Authorization": f"Bearer {issue_token('u-hidden', tenant, app_id)}"}
+    consumed = await client.post("/api/v1/hidden-actions/consume", json={"token": token}, headers=user_headers)
+    assert consumed.status_code == 200, consumed.text
+    assert consumed.json()["data"]["payload"] == {"form_id": "booking"}
+    replay = await client.post("/api/v1/hidden-actions/consume", json={"token": token}, headers=user_headers)
+    assert replay.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_chat_uses_llm_runner_and_returns_reply(client):
     """对话应走模型网关（当前为 mock），且返回非空回复。"""
     tenant, app_id = await _bootstrap(client, "t-chat2")

@@ -61,6 +61,8 @@ MCP 配置只保存凭据引用，例如 `{"url":"https://mcp.example/mcp","auth
 
 工具调用必须是 Agent 已绑定的工具：`POST /api/v1/apps/{app_id}/agents/{agent_id}/mcp-tools/{tool_id}/call`。租户可通过 `GET /api/v1/mcp-servers/calls/logs` 分页查询调用状态、耗时与错误类型；日志只存参数/结果形状和字节数，不存实际值。
 
+隐藏动作采用短时、签名且一次性的 capability token，绑定租户、应用、会话、run、action 和 payload 摘要；通过带已认证 `app_id + user_id` 的 `POST /api/v1/hidden-actions/consume` 消费。`call_function` 与 `download_file` 在预注册操作目录就绪前不签发 token。
+
 ## 接口速览
 
 ```

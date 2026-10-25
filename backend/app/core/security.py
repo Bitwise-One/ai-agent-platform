@@ -102,3 +102,48 @@ def verify_token(token: str) -> TokenClaims:
         app_id=claims.get("aid"),
         exp=int(claims["exp"]),
     )
+
+
+def issue_hidden_action_token(
+    *,
+    response_id: str,
+    tenant_id: str,
+    application_id: str,
+    conversation_id: str,
+    run_id: str,
+    action: str,
+    payload_hash: str,
+    ttl_seconds: int = 300,
+) -> str:
+    settings = get_settings()
+    claims = {
+        "typ": "hidden_action",
+        "rid": response_id,
+        "tid": tenant_id,
+        "aid": application_id,
+        "cid": conversation_id,
+        "run": run_id,
+        "act": action,
+        "ph": payload_hash,
+        "exp": int(time.time()) + ttl_seconds,
+        "jti": uuid.uuid4().hex,
+    }
+    body = _b64e(json.dumps(claims, separators=(",", ":"), sort_keys=True).encode())
+    return f"{body}.{_sign(body.encode(), settings.secret_key)}"
+
+
+def verify_hidden_action_token(token: str) -> dict:
+    try:
+        body, signature = token.split(".", 1)
+    except ValueError as exc:
+        raise TokenError("malformed action token") from exc
+    expected = _sign(body.encode(), get_settings().secret_key)
+    if not hmac.compare_digest(signature, expected):
+        raise TokenError("bad action token signature")
+    try:
+        claims = json.loads(_b64d(body))
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise TokenError("bad action token payload") from exc
+    if claims.get("typ") != "hidden_action" or int(claims.get("exp", 0)) < int(time.time()):
+        raise TokenError("invalid or expired action token")
+    return claims
