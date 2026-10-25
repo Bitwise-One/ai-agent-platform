@@ -54,7 +54,7 @@ export function MotionLabPage() {
           className="pointer-events-none absolute inset-0 opacity-[0.55]"
           style={{
             backgroundImage:
-              "linear-gradient(to right, rgba(118,68,167,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(118,68,167,0.06) 1px, transparent 1px)",
+              "linear-gradient(to right, rgba(105,217,179,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(105,217,179,0.06) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
           }}
           aria-hidden="true"

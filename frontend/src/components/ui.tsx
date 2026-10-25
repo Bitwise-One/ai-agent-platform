@@ -45,7 +45,7 @@ const buttonVariants: Record<ButtonVariant, string> = {
   default: "bg-white text-ink-primary border border-line-base hover:border-brand-400 hover:text-brand-600",
   dashed: "bg-white text-ink-secondary border border-dashed border-line-base hover:border-brand-400 hover:text-brand-600",
   text: "text-brand-600 hover:bg-brand-50 px-1",
-  danger: "bg-white text-[#CF1322] border border-[#FFCCC7] hover:bg-[#FFF1F0]",
+  danger: "bg-state-error-bg text-state-error-fg border border-state-error-fg/30 hover:bg-state-error-bg",
 };
 
 export interface ButtonProps
@@ -123,7 +123,7 @@ export function Field({
   return (
     <label className="block">
       <span className="mb-1.5 flex items-center gap-1 text-caption text-ink-secondary">
-        {required && <span className="text-[#FF4D4F]">*</span>}
+        {required && <span className="text-state-error-fg">*</span>}
         {label}
       </span>
       {children}
@@ -134,7 +134,7 @@ export function Field({
           initial={{ opacity: 0, y: -3, x: 0 }}
           animate={{ opacity: 1, y: 0, x: [0, -3, 3, -2, 1, 0] }}
           transition={{ duration: 0.34, ease: EASE }}
-          className="mt-1 block text-caption text-[#CF1322]"
+          className="mt-1 block text-caption text-state-error-fg"
           role="alert"
         >
           {error}
@@ -147,7 +147,7 @@ export function Field({
 }
 
 const controlClass =
-  "w-full rounded-control border border-line-base bg-white px-2.5 text-body text-ink-primary " +
+  "w-full rounded-control border border-line-base bg-surface-fill px-2.5 text-body text-ink-primary " +
   "placeholder:text-ink-tertiary transition-colors duration-150 hover:border-brand-300 " +
   "focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-surface-fill";
 
@@ -190,7 +190,7 @@ export function Switch({
       onClick={() => onChange(!checked)}
       whileTap={{ scale: 0.94 }}
       className="relative h-5 w-9 shrink-0 rounded-full"
-      animate={{ backgroundColor: checked ? "#7644A7" : "#D9D9D9" }}
+      animate={{ backgroundColor: checked ? "#0D7665" : "#52645D" }}
       transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
     >
       {/* 滑块用弹簧而不是线性位移：越过中点时会有一点点"被吸住"的迟滞 */}
@@ -335,7 +335,8 @@ export function StatusTag({
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-caption",
+        "status-tag inline-flex items-center gap-1 rounded-md border px-2 py-1 text-caption font-medium",
+        `status-tag-${tone}`,
         toneClass[tone],
         className,
       )}
@@ -368,6 +369,7 @@ export function taskTone(status: string): StatusTone {
     case "active":
     case "indexed":
     case "released":
+    case "published":
       return "success";
     case "running":
     case "created":
@@ -403,6 +405,7 @@ const taskText: Record<string, string> = {
   indexed: "已索引",
   pending: "待处理",
   released: "已发布",
+  published: "已发布",
 };
 
 export function statusText(status: string): string {
@@ -497,7 +500,7 @@ export function ErrorNote({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.18 }}
-        className="flex items-center justify-between gap-4 rounded-control border border-[#FFCCC7] bg-[#FFF1F0] px-3 py-2 text-body text-[#CF1322]"
+        className="status-callout status-callout-error flex items-center justify-between gap-4 rounded-control border px-3 py-2 text-body"
       >
         <span className="flex items-center gap-2">
           <IconAlert size={14} />
@@ -722,10 +725,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
               className={clsx(
-                "pointer-events-auto flex items-center gap-2 rounded-control border px-3 py-2 text-body shadow-popup",
-                item.tone === "success" && "border-[#B7EB8F] bg-white text-[#389E0D]",
-                item.tone === "error" && "border-[#FFCCC7] bg-white text-[#CF1322]",
-                item.tone === "info" && "border-[#91CAFF] bg-white text-[#0958D9]",
+                "toast-notice pointer-events-auto flex items-center gap-2 rounded-control border px-3 py-2 text-body shadow-popup",
+                `toast-notice-${item.tone}`,
               )}
             >
               {item.tone === "error" ? <IconAlert size={14} /> : <IconCheck size={14} />}

@@ -70,7 +70,7 @@ export function ParallaxLayers() {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden bg-[linear-gradient(160deg,#F6F1FB,#EBE0F7)]"
+      className="relative h-full w-full overflow-hidden bg-[linear-gradient(160deg,#EEF9F3,#DDF7EB)]"
       onPointerMove={onMove}
       data-lab="parallax"
     >
@@ -121,7 +121,7 @@ export function HoloFoil() {
         className="flex h-20 w-32 items-center justify-center rounded-card border border-white/60 shadow-card"
         style={{
           background:
-            "linear-gradient(115deg, rgba(118,68,167,0.85), rgba(94,124,224,0.7) 35%, rgba(56,158,13,0.6) 60%, rgba(217,119,6,0.65) 85%)",
+            "linear-gradient(115deg, rgba(105,217,179,0.85), rgba(67,137,124,0.7) 35%, rgba(56,158,13,0.6) 60%, rgba(217,119,6,0.65) 85%)",
           filter: `hue-rotate(${angle.toFixed(1)}deg) saturate(1.2)`,
           transition: "filter 90ms linear",
         }}
@@ -138,7 +138,7 @@ export function HoloFoil() {
 export function TextShine() {
   return (
     <div className="flex h-full w-full items-center justify-center" data-lab="shine">
-      <span className="anim-shine text-subtitle font-semibold" style={{ color: "#7644A7", animationDuration: "4.2s" }}>
+      <span className="anim-shine text-subtitle font-semibold" style={{ color: "#0D7665", animationDuration: "4.2s" }}>
         扫过一道光
       </span>
     </div>
@@ -264,7 +264,7 @@ export function LensFlare() {
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#221E2C]" onPointerMove={onMove} data-lab="flare">
+    <div className="relative h-full w-full overflow-hidden bg-[#14211C]" onPointerMove={onMove} data-lab="flare">
       <motion.span
         className="pointer-events-none absolute h-2 w-24 rounded-full bg-white/80 blur-[3px]"
         style={{ x, y, marginLeft: -48, marginTop: -4 }}
@@ -296,7 +296,7 @@ export function NeonFlicker() {
             ? { textShadow: "0 0 12px rgba(185,149,220,0.7)" }
             : {
                 textShadow:
-                  "0 0 8px rgba(185,149,220,0.9), 0 0 22px rgba(118,68,167,0.65), 0 0 44px rgba(118,68,167,0.35)",
+                  "0 0 8px rgba(185,149,220,0.9), 0 0 22px rgba(105,217,179,0.65), 0 0 44px rgba(105,217,179,0.35)",
                 animation: "lab-flicker 3.6s steps(1,end) infinite",
               }
         }

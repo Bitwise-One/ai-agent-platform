@@ -336,7 +336,7 @@ export function AgentsPage() {
                       <Button
                         size="sm"
                         variant="text"
-                        className="text-[#CF1322] hover:bg-[#FFF1F0]"
+                        className="text-state-error-fg hover:bg-state-error-bg"
                         onClick={() => void remove(agent)}
                         aria-label={`删除 ${agent.name}`}
                       >
@@ -414,7 +414,7 @@ export function AgentsPage() {
                 step={0.1}
                 value={form.temperature}
                 onChange={(e) => setForm({ ...form, temperature: Number(e.target.value) })}
-                className="mt-2 w-full accent-[#7644A7]"
+                className="mt-2 w-full accent-brand-500"
                 aria-label="温度"
               />
             </Field>
@@ -439,7 +439,7 @@ export function AgentsPage() {
                     >
                       <input
                         type="checkbox"
-                        className="accent-[#7644A7]"
+                        className="accent-brand-500"
                         checked={checked}
                         onChange={() => toggleKb(kb.id)}
                       />

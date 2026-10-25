@@ -119,7 +119,7 @@ export function ShimmerBorder() {
   const panel = useRef<HTMLDivElement>(null);
   const mx = useMotionValue(-200);
   const my = useMotionValue(-200);
-  const spot = useMotionTemplate`radial-gradient(160px circle at ${mx}px ${my}px, rgba(118,68,167,0.10), transparent 70%)`;
+  const spot = useMotionTemplate`radial-gradient(160px circle at ${mx}px ${my}px, rgba(105,217,179,0.10), transparent 70%)`;
 
   const onMove = (event: RPointerEvent<HTMLDivElement>) => {
     const rect = panel.current?.getBoundingClientRect();
@@ -145,7 +145,7 @@ export function ShimmerBorder() {
           style={{
             inset: "-60%",
             background:
-              "conic-gradient(from 0deg, transparent 0deg, #D6C2EC 30deg, #7644A7 55deg, #9C6BC9 75deg, transparent 130deg, transparent 360deg)",
+              "conic-gradient(from 0deg, transparent 0deg, #B7F3E2 30deg, #0D7665 55deg, #39B69A 75deg, transparent 130deg, transparent 360deg)",
           }}
           aria-hidden="true"
         />

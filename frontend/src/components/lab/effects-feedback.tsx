@@ -58,7 +58,7 @@ export function LoadingMorphDemo() {
 
   const tone =
     phase === "done"
-      ? "bg-[#389E0D] hover:bg-[#237804]"
+      ? "bg-[#68E1A6] hover:bg-[#237804]"
       : "bg-brand-500 hover:bg-brand-600";
 
   return (
@@ -127,7 +127,7 @@ export function ShakeDemo() {
         <div
           className={
             "rounded-control border bg-surface px-3 py-2 text-body transition-colors " +
-            (error ? "border-[#FFA39E] text-[#CF1322]" : "border-line-base text-ink-secondary")
+            (error ? "border-[#FFA39E] text-[#FF9DA6]" : "border-line-base text-ink-secondary")
           }
         >
           {error ? "未命名 应用" : "输入一个应用名"}
@@ -141,7 +141,7 @@ export function ShakeDemo() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2, ease: EASE }}
-              className="mt-1.5 text-caption text-[#CF1322]"
+              className="mt-1.5 text-caption text-[#FF9DA6]"
             >
               {error}
             </motion.p>

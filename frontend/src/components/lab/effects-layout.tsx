@@ -14,9 +14,9 @@ import { EASE } from "../../lib/motion";
 /* ---------------------------------------------------------------- 环形图 */
 
 const DONUT = [
-  { label: "路由", value: 42, color: "#7644A7" },
-  { label: "检索", value: 28, color: "#9C6BC9" },
-  { label: "生成", value: 20, color: "#B995DC" },
+  { label: "路由", value: 42, color: "#0D7665" },
+  { label: "检索", value: 28, color: "#39B69A" },
+  { label: "生成", value: 20, color: "#86DCC1" },
   { label: "其他", value: 10, color: "#E4D5F2" },
 ];
 
@@ -81,11 +81,11 @@ export function GaugeMeter() {
     <div className="flex h-full w-full flex-col items-center justify-center gap-4" data-lab="gauge">
       <div className="relative h-20 w-40 overflow-hidden">
         <svg viewBox="0 0 160 80" className="h-full w-full">
-          <path d="M 16 68 A 64 64 0 0 1 144 68" fill="none" stroke="#F0F0F0" strokeWidth={10} strokeLinecap="round" />
+          <path d="M 16 68 A 64 64 0 0 1 144 68" fill="none" stroke="#34453D" strokeWidth={10} strokeLinecap="round" />
           <motion.path
             d="M 16 68 A 64 64 0 0 1 144 68"
             fill="none"
-            stroke="#7644A7"
+            stroke="#0D7665"
             strokeWidth={10}
             strokeLinecap="round"
             initial={{ pathLength: 0 }}
@@ -125,7 +125,7 @@ export function HeatmapGrid() {
     () => Array.from({ length: 28 }, (_, i) => ({ i, level: (i * 7) % 5 })),
     [],
   );
-  const shades = ["#F6F1FB", "#EBE0F7", "#D6C2EC", "#B995DC", "#9C6BC9"];
+  const shades = ["#EEF9F3", "#DDF7EB", "#B7F3E2", "#86DCC1", "#39B69A"];
 
   return (
     <div className="flex h-full w-full items-center justify-center" data-lab="heatmap">
@@ -154,10 +154,10 @@ export function HeatmapGrid() {
 export function TreemapGrow() {
   const reduce = useReducedMotion();
   const blocks = [
-    { label: "知识库", w: "58%", color: "#7644A7" },
-    { label: "Agent", w: "38%", color: "#9C6BC9" },
-    { label: "模型", w: "38%", color: "#B995DC" },
-    { label: "其他", w: "58%", color: "#D6C2EC" },
+    { label: "知识库", w: "58%", color: "#0D7665" },
+    { label: "Agent", w: "38%", color: "#39B69A" },
+    { label: "模型", w: "38%", color: "#86DCC1" },
+    { label: "其他", w: "58%", color: "#B7F3E2" },
   ];
 
   return (

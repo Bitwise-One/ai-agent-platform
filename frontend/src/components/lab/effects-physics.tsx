@@ -115,7 +115,7 @@ export function MagneticButton() {
         type="button"
         style={{ x: sx, y: sy }}
         whileTap={{ scale: 0.95 }}
-        className="relative z-10 flex h-10 items-center gap-2 rounded-control bg-brand-500 px-5 text-body font-medium text-white shadow-[0_10px_24px_-12px_rgba(118,68,167,0.9)]"
+        className="relative z-10 flex h-10 items-center gap-2 rounded-control bg-brand-500 px-5 text-body font-medium text-white shadow-[0_10px_24px_-12px_rgba(105,217,179,0.9)]"
       >
         <motion.span style={{ x: labelX, y: labelY }} className="flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">

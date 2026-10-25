@@ -36,7 +36,7 @@ export function SwipeDismiss() {
           }}
         >
           <span className="flex-1 truncate px-3 text-caption text-ink-primary">{item.text}</span>
-          <span className="shrink-0 pr-3 text-[11px] text-[#CF1322]">删除</span>
+          <span className="shrink-0 pr-3 text-[11px] text-[#FF9DA6]">删除</span>
         </motion.li>
       ))}
       {items.length === 0 && (
@@ -88,13 +88,13 @@ export function LongPress() {
         }}
       >
         <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 48 48">
-          <circle cx="24" cy="24" r={radius} fill="none" stroke="#F0F0F0" strokeWidth={3} />
+          <circle cx="24" cy="24" r={radius} fill="none" stroke="#34453D" strokeWidth={3} />
           <circle
             cx="24"
             cy="24"
             r={radius}
             fill="none"
-            stroke="#7644A7"
+            stroke="#0D7665"
             strokeWidth={3}
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -195,7 +195,7 @@ export function SwipeReveal() {
       {[1, 2].map((id) => (
         <li key={id} className="relative h-9 overflow-hidden rounded-control">
           <div className="absolute inset-y-0 right-0 flex items-center gap-1.5 pr-2">
-            <span className="rounded-sm bg-[#FFF1F0] px-2 py-1 text-[11px] text-[#CF1322]">删除</span>
+            <span className="rounded-sm bg-[#3B2428] px-2 py-1 text-[11px] text-[#FF9DA6]">删除</span>
             <span className="rounded-sm bg-surface-fill px-2 py-1 text-[11px] text-ink-secondary">编辑</span>
           </div>
           <motion.div
@@ -384,13 +384,13 @@ export function OverscrollGlow() {
     >
       <motion.span
         className="pointer-events-none absolute inset-x-0 top-0 h-8"
-        style={{ background: "linear-gradient(to bottom, rgba(118,68,167,0.28), transparent)" }}
+        style={{ background: "linear-gradient(to bottom, rgba(105,217,179,0.28), transparent)" }}
         animate={{ opacity: edge === "top" ? 1 : 0 }}
         transition={{ duration: 0.25 }}
       />
       <motion.span
         className="pointer-events-none absolute inset-x-0 bottom-0 h-8"
-        style={{ background: "linear-gradient(to top, rgba(118,68,167,0.28), transparent)" }}
+        style={{ background: "linear-gradient(to top, rgba(105,217,179,0.28), transparent)" }}
         animate={{ opacity: edge === "bottom" ? 1 : 0 }}
         transition={{ duration: 0.25 }}
       />

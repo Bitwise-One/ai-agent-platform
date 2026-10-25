@@ -115,7 +115,7 @@ export function LiquidLoader() {
           className="anim-blob h-[88px] w-[88px] bg-brand-500"
           style={{
             boxShadow:
-              "inset 0 -8px 18px rgba(0,0,0,0.16), inset 0 6px 14px rgba(255,255,255,0.28), 0 10px 26px -12px rgba(118,68,167,0.7)",
+              "inset 0 -8px 18px rgba(0,0,0,0.16), inset 0 6px 14px rgba(255,255,255,0.28), 0 10px 26px -12px rgba(105,217,179,0.7)",
           }}
         />
         {/* 高光：液滴没有高光就只是一团色块 */}

@@ -539,7 +539,7 @@ export function PlaygroundPage() {
                 */}
                 {trace.reason && trace.status !== "completed" && (
                   <motion.div
-                    className="rounded-control border border-[#FFE58F] bg-[#FFFBE6] px-2.5 py-2 text-caption text-[#D48806]"
+                    className="status-callout status-callout-warning rounded-control border px-2.5 py-2 text-caption"
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, ease: EASE, delay: 0.12 }}

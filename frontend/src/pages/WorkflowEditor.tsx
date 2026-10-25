@@ -540,7 +540,7 @@ export function WorkflowEditorPage() {
                     markerHeight="6"
                     orient="auto-start-reverse"
                   >
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#B995DC" />
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#78E3C3" />
                   </marker>
                 </defs>
                 {graph.edges.map((edge, index) => {
@@ -555,7 +555,7 @@ export function WorkflowEditorPage() {
                       <motion.path
                         d={edgePath(from, to)}
                         fill="none"
-                        stroke="#B995DC"
+                        stroke="#78E3C3"
                         strokeWidth={1.5}
                         markerEnd="url(#arrow)"
                         // 连线「画出来」而不是突然出现：路径自身生长，顺序感更强
@@ -569,7 +569,7 @@ export function WorkflowEditorPage() {
                           {/* 光晕：让细线在浅底上也能看清「有什么东西过去了」 */}
                           <motion.circle
                             r={7}
-                            fill="#7644A7"
+                            fill="#0D7665"
                             initial={{ opacity: 0, cx: track.cx[0], cy: track.cy[0] }}
                             animate={{
                               cx: track.cx,
@@ -584,7 +584,7 @@ export function WorkflowEditorPage() {
                           />
                           <motion.circle
                             r={3}
-                            fill="#7644A7"
+                            fill="#0D7665"
                             initial={{ opacity: 0, cx: track.cx[0], cy: track.cy[0] }}
                             animate={{ cx: track.cx, cy: track.cy, opacity: [0, 1, 1, 0] }}
                             transition={{
@@ -817,7 +817,7 @@ export function WorkflowEditorPage() {
                       variants={riseItem}
                       className={
                         "flex items-start gap-1.5 text-caption " +
-                        (issue.level === "error" ? "text-[#CF1322]" : "text-[#D48806]")
+                        (issue.level === "error" ? "text-state-error-fg" : "text-state-warning-fg")
                       }
                     >
                       <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-current" />
@@ -848,7 +848,7 @@ export function WorkflowEditorPage() {
                       <button
                         type="button"
                         onClick={() => removeNode(selected.id)}
-                        className="flex items-center gap-1 text-caption text-[#CF1322] hover:underline"
+                        className="flex items-center gap-1 text-caption text-state-error-fg hover:underline"
                       >
                         <IconTrash size={12} /> 删除
                       </button>
@@ -897,7 +897,7 @@ export function WorkflowEditorPage() {
                                     type="button"
                                     aria-label="删除连线"
                                     onClick={() => removeEdge(edge.source, edge.target)}
-                                    className="text-ink-tertiary hover:text-[#CF1322]"
+                                    className="text-ink-tertiary hover:text-state-error-fg"
                                   >
                                     <IconClose size={12} />
                                   </button>

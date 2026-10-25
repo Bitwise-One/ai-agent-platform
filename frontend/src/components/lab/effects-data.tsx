@@ -49,8 +49,8 @@ export function SparklineDemo() {
       <svg viewBox="0 0 180 56" preserveAspectRatio="none" className="w-full" style={{ height: 56 }}>
         <defs>
           <linearGradient id="lab-spark-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#9C6BC9" stopOpacity={0.26} />
-            <stop offset="100%" stopColor="#9C6BC9" stopOpacity={0} />
+            <stop offset="0%" stopColor="#39B69A" stopOpacity={0.26} />
+            <stop offset="100%" stopColor="#39B69A" stopOpacity={0} />
           </linearGradient>
         </defs>
 
@@ -70,7 +70,7 @@ export function SparklineDemo() {
           key={`line-${tick}`}
           d={d}
           fill="none"
-          stroke="#7644A7"
+          stroke="#0D7665"
           strokeWidth={2}
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
@@ -147,8 +147,8 @@ export function BarGrowDemo() {
                 height: 72,
                 background:
                   hover === index
-                    ? "linear-gradient(to top, #63398C, #9C6BC9)"
-                    : "linear-gradient(to top, #7644A7, #B995DC)",
+                    ? "linear-gradient(to top, #0B6458, #39B69A)"
+                    : "linear-gradient(to top, #0D7665, #86DCC1)",
               }}
               initial={reduce ? { scaleY: 1 } : { scaleY: 0 }}
               animate={{ scaleY: bar.value / 100 }}
@@ -214,7 +214,7 @@ export function ListCollapseDemo() {
               <button
                 type="button"
                 onClick={() => setRows((prev) => prev.filter((one) => one.id !== row.id))}
-                className="shrink-0 rounded-sm px-1 text-[11px] text-ink-tertiary transition-colors hover:text-[#CF1322]"
+                className="shrink-0 rounded-sm px-1 text-[11px] text-ink-tertiary transition-colors hover:text-[#FF9DA6]"
               >
                 移除
               </button>

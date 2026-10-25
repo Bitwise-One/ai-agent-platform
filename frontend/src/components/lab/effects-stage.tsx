@@ -71,7 +71,7 @@ export function StaggerGrid() {
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.4, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: reduce ? 0.2 : 0.42, ease: EASE, delay: reduce ? 0 : i * 0.04 }}
-            whileHover={reduce ? undefined : { scale: 1.25, backgroundColor: "#7644A7" }}
+            whileHover={reduce ? undefined : { scale: 1.25, backgroundColor: "#0D7665" }}
           />
         ))}
       </div>
@@ -244,7 +244,7 @@ export function ConfettiRain() {
     left: `${4 + i * 6}%`,
     delay: (i % 5) * 0.12,
     duration: 1.4 + (i % 4) * 0.25,
-    color: ["#7644A7", "#9C6BC9", "#73D13D", "#FFD591", "#FF7875"][i % 5],
+    color: ["#0D7665", "#39B69A", "#8EE3AE", "#FFD591", "#FF7875"][i % 5],
     size: 4 + (i % 3) * 2,
   }));
 
@@ -333,7 +333,7 @@ export function WipeTransition() {
 export function SpotlightStage() {
   const reduce = useReducedMotion();
   const x = useMotionValue(0);
-  const glow = useTransform(x, (v) => `radial-gradient(circle 44px at ${v + 90}px 60px, rgba(118,68,167,0.28), transparent 70%)`);
+  const glow = useTransform(x, (v) => `radial-gradient(circle 44px at ${v + 90}px 60px, rgba(105,217,179,0.28), transparent 70%)`);
 
   useEffect(() => {
     if (reduce) return;
@@ -349,7 +349,7 @@ export function SpotlightStage() {
   }, [reduce, x]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#221E2C]" onPointerMove={(event) => {
+    <div className="relative h-full w-full overflow-hidden bg-[#14211C]" onPointerMove={(event) => {
       if (reduce) return;
       const rect = event.currentTarget.getBoundingClientRect();
       x.set(event.clientX - rect.left - 90);
@@ -395,7 +395,7 @@ export function OutroSequence() {
           >
             <motion.span
               className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] text-white"
-              style={{ background: index <= step ? "#389E0D" : "#D9D9D9" }}
+              style={{ background: index <= step ? "#68E1A6" : "#52645D" }}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 520, damping: 22, delay: reduce ? 0 : index * 0.42 }}
@@ -407,7 +407,7 @@ export function OutroSequence() {
         ))}
       </ul>
       <motion.span
-        className="text-caption font-medium text-[#389E0D]"
+        className="text-caption font-medium text-[#68E1A6]"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: step >= steps.length ? 1 : 0, scale: step >= steps.length ? 1 : 0.8 }}
         transition={{ type: "spring", stiffness: 420, damping: 18, delay: reduce ? 0 : 0.2 }}

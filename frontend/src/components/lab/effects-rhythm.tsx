@@ -56,7 +56,7 @@ export function Equalizer() {
               transformOrigin: "bottom",
               animationDelay: `${band.delay}s`,
               animationDuration: `${0.9 + index * 0.12}s`,
-              background: "linear-gradient(to top, #7644A7, #B995DC)",
+              background: "linear-gradient(to top, #0D7665, #86DCC1)",
             }}
           />
         ))}
@@ -124,7 +124,7 @@ export function RadarSweep() {
           className="anim-orbit absolute inset-0 rounded-full"
           style={{
             background:
-              "conic-gradient(from 0deg, rgba(118,68,167,0.42) 0deg 26deg, transparent 26deg 360deg)",
+              "conic-gradient(from 0deg, rgba(105,217,179,0.42) 0deg 26deg, transparent 26deg 360deg)",
             maskImage: "radial-gradient(circle, #000 0%, #000 100%)",
             WebkitMaskImage: "radial-gradient(circle, #000 0%, #000 100%)",
           }}
@@ -189,14 +189,14 @@ export function PulseLine() {
         <path
           d="M 0 30 L 40 30 L 48 12 L 58 48 L 68 20 L 78 30 L 200 30"
           fill="none"
-          stroke="#EBE0F7"
+          stroke="#DDF7EB"
           strokeWidth={3}
           strokeLinecap="round"
         />
         <path
           d="M 0 30 L 40 30 L 48 12 L 58 48 L 68 20 L 78 30 L 200 30"
           fill="none"
-          stroke="#7644A7"
+          stroke="#0D7665"
           strokeWidth={3}
           strokeLinecap="round"
           strokeDasharray="46 200"
@@ -271,7 +271,7 @@ export function WaveLine() {
           className={reduce ? "" : "anim-marquee"}
           style={{ animationDuration: "6s" }}
         >
-          <path d={path} fill="none" stroke="#9C6BC9" strokeWidth={2.5} strokeLinecap="round" />
+          <path d={path} fill="none" stroke="#39B69A" strokeWidth={2.5} strokeLinecap="round" />
         </svg>
       </div>
     </div>

@@ -303,7 +303,7 @@ export function PerspectiveGrid() {
           <motion.span
             key={i}
             className="h-5 w-5 rounded-sm bg-brand-200"
-            animate={{ translateZ: hover === i ? 18 : 0, backgroundColor: hover === i ? "#9C6BC9" : "#D6C2EC" }}
+            animate={{ translateZ: hover === i ? 18 : 0, backgroundColor: hover === i ? "#39B69A" : "#B7F3E2" }}
             transition={{ duration: reduce ? 0 : 0.26, ease: EASE }}
             onPointerEnter={() => setHover(i)}
           />

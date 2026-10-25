@@ -122,7 +122,7 @@ export function RipplePond() {
       }}
       data-lab="pond"
     >
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(118,68,167,0.05),rgba(94,124,224,0.05))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(105,217,179,0.05),rgba(67,137,124,0.05))]" />
       {rings.map((ring) => (
         <motion.span
           key={ring.id}
@@ -145,14 +145,14 @@ export function RipplePond() {
 /** 熔岩灯：三团不规则圆角的光，用不同周期上升/下落，互不同步才像在翻涌 */
 export function LavaLamp() {
   const blobs = [
-    { size: 46, x: "18%", dur: 7.5, delay: 0, color: "rgba(118,68,167,0.55)" },
+    { size: 46, x: "18%", dur: 7.5, delay: 0, color: "rgba(105,217,179,0.55)" },
     { size: 32, x: "46%", dur: 9.2, delay: -3, color: "rgba(156,107,201,0.5)" },
-    { size: 38, x: "70%", dur: 8.1, delay: -5.5, color: "rgba(94,124,224,0.45)" },
+    { size: 38, x: "70%", dur: 8.1, delay: -5.5, color: "rgba(67,137,124,0.45)" },
   ];
 
   return (
     <div className="relative h-full w-full overflow-hidden" data-lab="lava">
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[linear-gradient(to_top,rgba(118,68,167,0.12),transparent)]" />
+      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[linear-gradient(to_top,rgba(105,217,179,0.12),transparent)]" />
       {blobs.map((blob, index) => (
         <span
           key={index}
@@ -189,7 +189,7 @@ export function MercuryDrop() {
         animate={reduce ? {} : { scaleX: squash ? 1.22 : 1, scaleY: squash ? 0.82 : 1 }}
         transition={{ type: "spring", stiffness: 420, damping: 12, mass: 0.7 }}
       >
-        <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_32%_28%,#ffffff,rgba(255,255,255,0)_42%),radial-gradient(circle_at_65%_72%,#B995DC,#7644A7_58%,#4E2C6F)]" />
+        <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_32%_28%,#ffffff,rgba(255,255,255,0)_42%),radial-gradient(circle_at_65%_72%,#86DCC1,#0D7665_58%,#0A5249)]" />
         <span className="absolute left-[26%] top-[18%] h-3 w-4 -rotate-12 rounded-full bg-white/85 blur-[2px]" />
         <span className="absolute bottom-1 left-1/2 h-1.5 w-8 -translate-x-1/2 rounded-full bg-brand-700/25 blur-[3px]" />
       </motion.div>
@@ -208,7 +208,7 @@ export function GlassPanel() {
     <div className="relative flex h-full w-full items-center justify-center overflow-hidden" data-lab="glass">
       <span className="anim-drift absolute h-32 w-32 rounded-full bg-brand-300/70" style={{ animationDuration: "14s" }} />
       <span
-        className="anim-drift absolute h-24 w-24 rounded-full bg-[#5E7CE0]/60"
+        className="anim-drift absolute h-24 w-24 rounded-full bg-[#438C80]/60"
         style={{ animationDuration: "18s", animationDelay: "-6s", left: "55%", top: "18%" }}
       />
 
@@ -272,7 +272,7 @@ export function InkBloom() {
           cx="90"
           cy="60"
           r="34"
-          fill="#7644A7"
+          fill="#0D7665"
           filter="url(#lab-ink)"
           initial={{ scale: 0.2, opacity: 0.9 }}
           animate={{ scale: 1, opacity: 0.35 }}

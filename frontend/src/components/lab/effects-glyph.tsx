@@ -127,13 +127,13 @@ export function CountRing() {
     <div className="flex h-full w-full flex-col items-center justify-center gap-3" data-lab="ring">
       <div className="relative h-16 w-16">
         <svg className="h-full w-full -rotate-90" viewBox="0 0 64 64">
-          <circle cx="32" cy="32" r={radius} fill="none" stroke="#F0F0F0" strokeWidth={6} />
+          <circle cx="32" cy="32" r={radius} fill="none" stroke="#34453D" strokeWidth={6} />
           <motion.circle
             cx="32"
             cy="32"
             r={radius}
             fill="none"
-            stroke="#7644A7"
+            stroke="#0D7665"
             strokeWidth={6}
             strokeLinecap="round"
             strokeDasharray={circumference}

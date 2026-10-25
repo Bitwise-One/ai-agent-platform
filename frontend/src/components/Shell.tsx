@@ -71,8 +71,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const pageTitle = NAV.find((item) => item.end ? location.pathname === item.to : location.pathname.startsWith(item.to))?.label ?? "工作流画布";
 
   return (
-    <div className="console-shell flex h-full min-h-screen bg-[#e9eff3]">
-      <aside className="console-sidebar flex w-[244px] shrink-0 flex-col border-r border-white/20 bg-[#111a21]/90 text-white backdrop-blur-2xl max-md:w-[68px]">
+    <div className="console-shell flex h-full min-h-screen bg-[#0b1412]">
+      <aside className="console-sidebar flex w-[244px] shrink-0 flex-col border-r border-white/20 bg-[#101914]/90 text-white backdrop-blur-2xl max-md:w-[68px]">
         <motion.div
           className="flex h-[72px] items-center gap-3 border-b border-white/10 px-5 max-md:justify-center max-md:px-0"
           initial={{ opacity: 0, x: -8 }}
@@ -80,7 +80,7 @@ export function Shell({ children }: { children: ReactNode }) {
           transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
         >
           <motion.span
-            className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-[10px] bg-[#baf4e5] text-[11px] font-black text-[#101d24] shadow-[0_0_28px_rgba(101,236,208,.28)]"
+            className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-[10px] bg-[#b7f3e2] text-[11px] font-black text-[#10231b] shadow-[0_0_28px_rgba(101,236,208,.24)]"
           >
             <span className="absolute inset-0 bg-white/30" />
             AP
@@ -101,10 +101,11 @@ export function Shell({ children }: { children: ReactNode }) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                title={item.label}
                 className={
                   "relative mb-1 flex h-10 items-center gap-3 rounded-[7px] px-3 text-body transition-colors duration-150 max-md:justify-center max-md:px-0 " +
                   (active
-                    ? "bg-white/12 font-semibold text-[#baf4e5] ring-1 ring-white/15"
+                    ? "bg-white/12 font-semibold text-[#b7f3e2] ring-1 ring-white/15"
                     : "text-white/55 hover:bg-white/8 hover:text-white")
                 }
               >
@@ -113,7 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   // 位置关系本身就是导航的心智模型，滑动把这个关系画了出来
                   <motion.span
                     layoutId="nav-active-bar"
-                    className="hidden"
+                    className="absolute bottom-2 left-0 top-2 w-0.5 rounded-r-full bg-[#8af0c8] shadow-[0_0_12px_rgba(138,240,200,.65)]"
                     transition={{ type: "spring", stiffness: 520, damping: 40 }}
                   />
                 )}
@@ -155,7 +156,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="console-header flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-white/55 bg-white/50 px-8 backdrop-blur-2xl max-md:h-auto max-md:min-h-[72px] max-md:flex-wrap max-md:px-4 max-md:py-3">
           {/* 工作区切换是全局状态，首屏一次轻入；之后它一直在，不该反复抢戏 */}
           <motion.div
-            className="flex min-w-0 shrink-0 items-center gap-2 text-caption text-black/45 max-md:flex-wrap"
+            className="flex min-w-0 shrink-0 items-center gap-2 text-caption text-white/55 max-md:flex-wrap"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
@@ -179,7 +180,7 @@ export function Shell({ children }: { children: ReactNode }) {
                     </option>
                   ))}
                 </Select>
-                <span className="text-black/20">/</span>
+                <span className="text-white/25">/</span>
                 <Select
                   aria-label="选择应用"
                   className="workspace-select h-9 w-[180px] shrink-0 text-caption"
@@ -200,10 +201,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
           {/* 错误信息换内容时淡出淡入：原地替换文本会「跳」 */}
           <div className="ml-auto flex items-center gap-4">
-          <span className="hidden text-caption font-medium text-[#424a43] md:inline">{pageTitle}</span>
+          <span className="hidden text-caption font-medium text-[#d3e5df] md:inline">{pageTitle}</span>
           {error && (
             <FadeSwap id={error}>
-              <div className="truncate text-caption text-[#CF1322]">{error}</div>
+              <div className="truncate text-caption text-state-error-fg">{error}</div>
             </FadeSwap>
           )}
           </div>

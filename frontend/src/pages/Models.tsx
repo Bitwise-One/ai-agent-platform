@@ -240,7 +240,7 @@ export function ModelsPage() {
                         <Button
                           size="sm"
                           variant="text"
-                          className="text-[#CF1322] hover:bg-[#FFF1F0]"
+                          className="text-state-error-fg hover:bg-state-error-bg"
                           aria-label={`删除 ${model.name}`}
                           onClick={() => void remove(model)}
                         >

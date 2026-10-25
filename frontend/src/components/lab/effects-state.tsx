@@ -16,7 +16,7 @@ const CONFETTI = Array.from({ length: 14 }, (_, i) => ({
   angle: (i / 14) * Math.PI * 2,
   distance: 30 + (i % 3) * 12,
   size: 4 + (i % 3) * 2,
-  color: ["#7644A7", "#9C6BC9", "#73D13D", "#FFD591"][i % 4],
+  color: ["#0D7665", "#39B69A", "#8EE3AE", "#FFD591"][i % 4],
 }));
 
 /** 成功迸发：勾先画出，再炸出一圈彩屑——先确认，再庆祝，顺序不能反 */
@@ -46,7 +46,7 @@ export function SuccessBurst() {
               />
             ))}
             <motion.span
-              className="absolute inset-0 rounded-full border-2 border-[#389E0D]"
+              className="absolute inset-0 rounded-full border-2 border-[#68E1A6]"
               initial={{ scale: 0.6, opacity: 0.8 }}
               animate={{ scale: 1.7, opacity: 0 }}
               transition={{ duration: 0.55, ease: EASE, delay: 0.1 }}
@@ -60,7 +60,7 @@ export function SuccessBurst() {
               key={`check-${round}`}
               d="M 8 17 L 14 23 L 24 10"
               fill="none"
-              stroke="#389E0D"
+              stroke="#68E1A6"
               strokeWidth={3}
               strokeLinecap="round"
               initial={{ pathLength: 0 }}
@@ -97,14 +97,14 @@ export function ErrorCard() {
           reduce || !failed
             ? { borderColor: "rgba(217,217,217,1)", x: 0 }
             : {
-                borderColor: ["#D9D9D9", "#FF4D4F", "#FFCCC7"],
+                borderColor: ["#52645D", "#FF8490", "#A25E67"],
                 x: [0, -6, 5, -4, 2, 0],
               }
         }
         transition={{ duration: reduce ? 0 : 0.5, ease: "easeInOut", x: { duration: 0.44 } }}
       >
         <div className="font-medium text-ink-primary">调用模型网关</div>
-        <div className={failed ? "text-[#CF1322]" : "text-ink-tertiary"}>
+        <div className={failed ? "text-[#FF9DA6]" : "text-ink-tertiary"}>
           {failed ? "连接超时（30s）" : "等待执行"}
         </div>
       </motion.div>
@@ -133,7 +133,7 @@ export function CheckPop() {
         type="button"
         onClick={() => setOn((v) => !v)}
         className="flex h-12 w-12 items-center justify-center rounded-control border-2"
-        style={{ borderColor: on ? "#389E0D" : "#D9D9D9", background: on ? "#F6FFED" : "#FFFFFF" }}
+        style={{ borderColor: on ? "#68E1A6" : "#52645D", background: on ? "#193A2C" : "#FFFFFF" }}
         animate={reduce ? {} : { scale: on ? [1, 1.18, 1] : 1 }}
         transition={{ duration: 0.32, ease: EASE }}
       >
@@ -141,7 +141,7 @@ export function CheckPop() {
           <motion.path
             d="M 5 13 L 10 18 L 19 7"
             fill="none"
-            stroke="#389E0D"
+            stroke="#68E1A6"
             strokeWidth={2.5}
             strokeLinecap="round"
             initial={{ pathLength: 0 }}
@@ -165,7 +165,7 @@ export function DayNightSwitch() {
     <div
       className="flex h-full w-full items-center justify-center"
       style={{
-        background: night ? "#221E2C" : "#F6F1FB",
+        background: night ? "#14211C" : "#EEF9F3",
         transition: reduce ? undefined : "background 0.45s ease",
       }}
       data-lab="daynight"
@@ -175,7 +175,7 @@ export function DayNightSwitch() {
         onClick={() => setNight((v) => !v)}
         aria-label="切换昼夜"
         className="relative h-8 w-16 rounded-full border border-line-base"
-        style={{ background: night ? "#4E2C6F" : "#FFD591" }}
+        style={{ background: night ? "#0A5249" : "#FFD591" }}
       >
         <motion.span
           className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm"
@@ -184,7 +184,7 @@ export function DayNightSwitch() {
         />
         <motion.span
           className="absolute top-1/2 -translate-y-1/2 text-[10px]"
-          style={{ left: night ? 8 : 34, color: night ? "#EBE0F7" : "#D48806" }}
+          style={{ left: night ? 8 : 34, color: night ? "#DDF7EB" : "#E8BD73" }}
           animate={{ opacity: 1 }}
         >
           {night ? "夜" : "日"}
@@ -211,8 +211,8 @@ export function StepProgress() {
               <motion.span
                 className="flex h-6 w-6 items-center justify-center rounded-full text-[11px]"
                 style={{
-                  background: index <= step ? "#7644A7" : "#F0F0F0",
-                  color: index <= step ? "#FFFFFF" : "rgba(0,0,0,0.45)",
+                  background: index <= step ? "#0D7665" : "#34453D",
+                  color: index <= step ? "#FFFFFF" : "rgba(151,170,161,1)",
                 }}
                 animate={reduce ? {} : { scale: index === step ? 1.14 : 1 }}
                 transition={{ type: "spring", stiffness: 460, damping: 24 }}
@@ -224,7 +224,7 @@ export function StepProgress() {
               </span>
             </div>
             {index < labels.length - 1 && (
-              <div className="mx-1 h-0.5 w-8 bg-[#F0F0F0]">
+              <div className="mx-1 h-0.5 w-8 bg-[#34453D]">
                 <motion.div
                   className="h-full bg-brand-500"
                   initial={{ width: 0 }}
@@ -279,10 +279,10 @@ export function UploadProgress() {
           <span className="text-ink-primary">售后政策.pdf</span>
           <span className="tabular text-ink-tertiary">{progress}%</span>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#F0F0F0]">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#34453D]">
           <motion.div
             className="h-full rounded-full"
-            style={{ background: done ? "#389E0D" : "#7644A7" }}
+            style={{ background: done ? "#68E1A6" : "#0D7665" }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: reduce ? 0 : 0.18, ease: "linear" }}
           />
@@ -320,7 +320,7 @@ export function OfflineRetry() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-2" data-lab="offline">
       <div className="flex items-center gap-1.5 text-caption text-ink-secondary">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#D48806]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#E8BD73]" />
         连接中断，正在重试
         <span className="anim-dots inline-flex w-3 gap-0.5 text-brand-500">
           <span className="h-1 w-1 rounded-full bg-current" />
@@ -365,7 +365,7 @@ export function BadgePop() {
         <span className="flex h-12 w-12 items-center justify-center rounded-card border border-line-split bg-surface text-ink-tertiary">
           🔔
         </span>
-        <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center overflow-hidden rounded-full bg-[#CF1322] px-1">
+        <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center overflow-hidden rounded-full bg-[#FF9DA6] px-1">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={count}
@@ -381,7 +381,7 @@ export function BadgePop() {
         </span>
         <motion.span
           key={`halo-${pulse}`}
-          className="pointer-events-none absolute -right-2 -top-2 h-5 w-5 rounded-full border-2 border-[#FF4D4F]"
+          className="pointer-events-none absolute -right-2 -top-2 h-5 w-5 rounded-full border-2 border-[#FF8490]"
           initial={{ scale: 1, opacity: 0.8 }}
           animate={{ scale: 2.4, opacity: 0 }}
           transition={{ duration: 0.6, ease: EASE }}
@@ -408,7 +408,7 @@ export function SegmentRing() {
         className="anim-orbit-slow relative h-16 w-16 rounded-full"
         style={{
           background:
-            "conic-gradient(from 0deg, #7644A7 0deg 30deg, transparent 30deg 60deg, #9C6BC9 60deg 90deg, transparent 90deg 120deg, #7644A7 120deg 150deg, transparent 150deg 180deg, #9C6BC9 180deg 210deg, transparent 210deg 240deg, #7644A7 240deg 270deg, transparent 270deg 300deg, #9C6BC9 300deg 330deg, transparent 330deg 360deg)",
+            "conic-gradient(from 0deg, #0D7665 0deg 30deg, transparent 30deg 60deg, #39B69A 60deg 90deg, transparent 90deg 120deg, #0D7665 120deg 150deg, transparent 150deg 180deg, #39B69A 180deg 210deg, transparent 210deg 240deg, #0D7665 240deg 270deg, transparent 270deg 300deg, #39B69A 300deg 330deg, transparent 330deg 360deg)",
           maskImage: "radial-gradient(circle, transparent 52%, #000 54%)",
           WebkitMaskImage: "radial-gradient(circle, transparent 52%, #000 54%)",
         }}

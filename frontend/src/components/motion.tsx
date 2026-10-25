@@ -112,9 +112,9 @@ export function AuroraField({ className = "" }: { className?: string }) {
   const reduce = useReducedMotion();
   const blobs = useMemo(
     () => [
-      { size: 420, color: "rgba(118,68,167,0.20)", x: "-12%", y: "-30%", dur: 22, delay: 0 },
-      { size: 360, color: "rgba(94,124,224,0.16)", x: "58%", y: "-10%", dur: 26, delay: -8 },
-      { size: 300, color: "rgba(180,120,220,0.14)", x: "25%", y: "45%", dur: 19, delay: -14 },
+      { size: 420, color: "rgba(66,202,157,0.18)", x: "-12%", y: "-30%", dur: 22, delay: 0 },
+      { size: 360, color: "rgba(74,161,145,0.14)", x: "58%", y: "-10%", dur: 26, delay: -8 },
+      { size: 300, color: "rgba(207,177,111,0.09)", x: "25%", y: "45%", dur: 19, delay: -14 },
     ],
     [],
   );
@@ -175,8 +175,8 @@ export function DropletSplash({
   const reduce = useReducedMotion();
   const palette =
     tone === "success"
-      ? { ring: "#52C41A", core: "#95DE64", drop: "#73D13D" }
-      : { ring: "#7644A7", core: "#B995DC", drop: "#8B5FBF" };
+      ? { ring: "#68E1A6", core: "#B6F3CE", drop: "#7EE7AE" }
+      : { ring: "#4CCCA3", core: "#A5F1D6", drop: "#61D9B4" };
 
   const droplets: Droplet[] = useMemo(
     () =>
@@ -298,7 +298,7 @@ export function StreamCursor() {
   return (
     <motion.span
       className="ml-0.5 inline-block h-4 w-[2px] align-middle"
-      style={{ backgroundColor: "#7644A7" }}
+      style={{ backgroundColor: "#74E0BD" }}
       animate={reduce ? { opacity: 1 } : { opacity: [1, 0.15, 1] }}
       transition={reduce ? undefined : { duration: 0.95, repeat: Infinity, ease: "easeInOut" }}
     />
@@ -381,8 +381,8 @@ export function Flash({
       initial={false}
       animate={
         active && !reduce
-          ? { backgroundColor: ["rgba(118,68,167,0.16)", "rgba(118,68,167,0)"] }
-          : { backgroundColor: "rgba(118,68,167,0)" }
+          ? { backgroundColor: ["rgba(66,202,157,0.2)", "rgba(66,202,157,0)"] }
+          : { backgroundColor: "rgba(66,202,157,0)" }
       }
       transition={{ duration: 0.6, ease: EASE }}
     >
@@ -652,9 +652,9 @@ export function ScrollProgress({ target }: { target: RefObject<HTMLElement> }) {
 /* ================================================================ 空态插画 */
 
 const ART_TONE = {
-  brand: { core: "#7644A7", soft: "rgba(118,68,167,0.14)", ring: "rgba(118,68,167,0.28)" },
-  success: { core: "#389E0D", soft: "rgba(56,158,13,0.14)", ring: "rgba(56,158,13,0.28)" },
-  error: { core: "#CF1322", soft: "rgba(207,19,34,0.12)", ring: "rgba(207,19,34,0.26)" },
+  brand: { core: "#72DEBB", soft: "rgba(66,202,157,0.14)", ring: "rgba(100,227,185,0.3)" },
+  success: { core: "#68E1A6", soft: "rgba(88,210,145,0.14)", ring: "rgba(104,225,166,0.3)" },
+  error: { core: "#FF8F99", soft: "rgba(255,105,120,0.12)", ring: "rgba(255,126,139,0.26)" },
 } as const;
 
 /**
@@ -729,9 +729,9 @@ export function EmptyArt({
 /* ================================================================ 折线图 */
 
 const SPARK_TONE = {
-  brand: { line: "#7644A7", area: "#9C6BC9" },
-  success: { line: "#389E0D", area: "#73D13D" },
-  error: { line: "#CF1322", area: "#FF7875" },
+  brand: { line: "#68D9B1", area: "#37AE8B" },
+  success: { line: "#68E1A6", area: "#38B679" },
+  error: { line: "#FF8F99", area: "#FFB0A7" },
 } as const;
 
 /** 用 Catmull-Rom 转三次贝塞尔：比折线柔和，又不像手绘曲线那样过冲 */

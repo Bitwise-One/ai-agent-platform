@@ -15,7 +15,7 @@ import { EASE, listContainer, listItem, spring } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
 import { CountUp, Odometer, popItem, Stagger } from "../components/motion";
 import { Card, CardHeader, ErrorNote, PageHeader, Skeleton, StatusTag, statusText, taskTone } from "../components/ui";
-import { IconArrowRight, IconBook, IconGraph, IconSparkle } from "../components/icons";
+import { IconAgent, IconArrowRight, IconBook, IconGraph, IconSparkle } from "../components/icons";
 
 function Metric({
   label,
@@ -91,10 +91,19 @@ export function OverviewPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: EASE }}
           >
-            <div className="overview-orbit" aria-hidden="true"><i /><i /><i /><b /></div>
+            <div className="overview-network" aria-hidden="true">
+              <span className="network-link network-link-a" />
+              <span className="network-link network-link-b" />
+              <span className="network-link network-link-c" />
+              <i className="network-node network-node-core"><IconSparkle size={18} /></i>
+              <i className="network-node network-node-one"><IconAgent size={15} /></i>
+              <i className="network-node network-node-two"><IconGraph size={15} /></i>
+              <i className="network-node network-node-three"><IconBook size={14} /></i>
+              <b className="network-packet" />
+            </div>
             <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div>
-                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a8f0dc]">
+                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9fe7c4]">
                   <IconSparkle size={13} /> 工作区概况
                 </div>
                 <h2 className="max-w-xl text-[24px] font-semibold text-white">
@@ -109,7 +118,7 @@ export function OverviewPage() {
                   <div className="text-[11px] text-white/50">已配置 Agent</div>
                   <div className="mt-1 flex items-center justify-end gap-2 text-xl font-semibold text-white">
                     <motion.span
-                      className="h-2 w-2 rounded-full bg-[#d5f36a]"
+                      className="h-2 w-2 rounded-full bg-[#91e2b5]"
                     />
                     {agents.data?.length ?? 0}
                   </div>
@@ -117,7 +126,7 @@ export function OverviewPage() {
                 <div className="h-10 w-px bg-white/10" />
                 <div>
                   <div className="text-[11px] text-white/50">服务状态</div>
-                  <div className="mt-1 text-sm font-medium text-[#a8f0dc]">可用</div>
+                  <div className="mt-1 text-sm font-medium text-[#9fe7c4]">可用</div>
                 </div>
               </div>
             </div>

@@ -63,7 +63,7 @@ export function SpringChain() {
                 marginTop: -(16 - index) / 2,
                 x: point.x,
                 y: point.y,
-                background: index === 0 ? "#7644A7" : `rgba(118,68,167,${0.85 - index * 0.16})`,
+                background: index === 0 ? "#0D7665" : `rgba(105,217,179,${0.85 - index * 0.16})`,
               }}
             />
           ))}
@@ -98,7 +98,7 @@ function ChainLines({ points }: { points: Point[] }) {
 
   return (
     <motion.svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-      <motion.path d={d} fill="none" stroke="rgba(118,68,167,0.35)" strokeWidth={1.5} strokeDasharray="4 3" />
+      <motion.path d={d} fill="none" stroke="rgba(105,217,179,0.35)" strokeWidth={1.5} strokeDasharray="4 3" />
     </motion.svg>
   );
 }
@@ -112,7 +112,7 @@ export function PendulumSwing() {
       <span className="absolute left-1/2 top-3 h-1 w-1 -translate-x-1/2 rounded-full bg-ink-tertiary" />
       <span
         className="anim-pendulum absolute left-1/2 top-3 origin-top"
-        style={{ height: 92, width: 1, background: "rgba(118,68,167,0.35)" }}
+        style={{ height: 92, width: 1, background: "rgba(105,217,179,0.35)" }}
       >
         <span className="absolute -bottom-2 left-1/2 h-6 w-6 -translate-x-1/2 rounded-full bg-brand-500 shadow-card" />
       </span>
@@ -264,7 +264,7 @@ export function WhipLash() {
           key={round}
           d="M 10 35 C 60 5, 90 65, 130 35 S 180 8, 190 35"
           fill="none"
-          stroke="#7644A7"
+          stroke="#0D7665"
           strokeWidth={3}
           strokeLinecap="round"
           initial={{ pathLength: 0, opacity: 0.4 }}
@@ -274,7 +274,7 @@ export function WhipLash() {
         <motion.circle
           key={`dot-${round}`}
           r={0}
-          fill="#9C6BC9"
+          fill="#39B69A"
           initial={{ cx: 190, cy: 35, r: 0 }}
           animate={{ cx: 190, cy: 35, r: [0, 6, 4] }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.45 }}
