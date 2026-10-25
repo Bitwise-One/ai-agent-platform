@@ -22,6 +22,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.database import set_tenant_context
 from app.core.deps import RequestContext
 from app.core.errors import AppError, NotFound
 from app.core.security import TokenError, issue_hidden_action_token, verify_hidden_action_token
@@ -38,6 +40,7 @@ from app.models import (
     Conversation,
     HiddenResponse,
     McpToolRecord,
+    RunStreamEvent,
     Skill,
     TaskRun,
     TaskStatus,
@@ -67,6 +70,20 @@ class PreparedChat:
     skills_by_agent: dict[str, list[dict]]
     mcp_tools_by_agent: dict[str, list[dict]]
     mcp_tool_executor: Any
+    replay_events: list[dict] | None = None
+
+
+def _response_for_existing_run(prepared: PreparedChat) -> ChatResponse:
+    output = prepared.run.output or {}
+    return ChatResponse(
+        conversation_id=prepared.conversation.id,
+        run_id=prepared.run.id,
+        status=prepared.run.status,
+        reply=output.get("reply"),
+        hidden_responses=output.get("hidden_responses") or [],
+        token_usage=prepared.run.token_usage,
+        rag_sources=output.get("rag_sources") or [],
+    )
 
 
 # ---------------------------------------------------------------- 准备阶段
@@ -119,6 +136,7 @@ async def prepare_chat(
     ctx: RequestContext,
     app_id: uuid.UUID,
     payload: ChatRequest,
+    idempotency_key: str | None = None,
     *,
     runner: AgentRunner | None = None,
 ) -> PreparedChat:
@@ -134,6 +152,47 @@ async def prepare_chat(
     )
     if app is None:
         raise NotFound("应用不存在")
+
+    request_hash = hashlib.sha256(
+        json.dumps(
+            {"user_id": payload.user_id, "conversation_id": str(payload.conversation_id) if payload.conversation_id else None, "message": payload.message},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if idempotency_key:
+        if len(idempotency_key) > 128 or not idempotency_key.strip():
+            raise AppError(10001, "Idempotency-Key 必须为 1 到 128 个非空字符", 422)
+        existing = await session.scalar(
+            select(TaskRun).where(
+                TaskRun.tenant_id == ctx.tenant_id,
+                TaskRun.application_id == app_id,
+                TaskRun.idempotency_key == idempotency_key,
+            )
+        )
+        if existing:
+            if existing.request_hash != request_hash:
+                raise AppError(10009, "Idempotency-Key 已用于不同请求", 409)
+            conversation = await conv_service.get_conversation(
+                session, ctx.tenant_id, app_id, existing.conversation_id, user_id=payload.user_id
+            )
+            events = await session.scalars(
+                select(RunStreamEvent)
+                .where(RunStreamEvent.run_id == existing.id, RunStreamEvent.tenant_id == ctx.tenant_id)
+                .order_by(RunStreamEvent.sequence)
+            )
+            return PreparedChat(
+                conversation=conversation,
+                run=existing,
+                spec=WorkflowSpec.from_definition({}),
+                retriever=None,
+                runner=runner or llm_agent_runner,
+                skills_by_agent={},
+                mcp_tools_by_agent={},
+                mcp_tool_executor=None,
+                replay_events=[event.data for event in events],
+            )
 
     if payload.conversation_id:
         conversation = await conv_service.get_conversation(
@@ -152,7 +211,13 @@ async def prepare_chat(
     )
 
     run = await conv_service.create_run(
-        session, ctx.tenant_id, conversation.id, {"message": payload.message}
+        session,
+        ctx.tenant_id,
+        app_id,
+        conversation.id,
+        {"message": payload.message},
+        idempotency_key=idempotency_key,
+        request_hash=request_hash if idempotency_key else None,
     )
     await conv_service.start_run(session, run)
 
@@ -248,6 +313,37 @@ async def _execute(
         return RunResult(status=TaskStatus.FAILED, reason=f"调度异常: {exc}")
 
 
+async def _persist_stream_event(
+    session: AsyncSession, tenant_id: uuid.UUID, run_id: uuid.UUID, sequence: int, event: dict
+) -> None:
+    session.add(
+        RunStreamEvent(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            sequence=sequence,
+            event_type=event["type"],
+            data=event,
+        )
+    )
+    await session.commit()
+    await set_tenant_context(session, str(tenant_id))
+
+
+async def _load_stream_events(
+    session: AsyncSession, tenant_id: uuid.UUID, run_id: uuid.UUID, after: int = 0
+) -> list[dict]:
+    rows = await session.scalars(
+        select(RunStreamEvent)
+        .where(
+            RunStreamEvent.tenant_id == tenant_id,
+            RunStreamEvent.run_id == run_id,
+            RunStreamEvent.sequence > after,
+        )
+        .order_by(RunStreamEvent.sequence)
+    )
+    return [row.data for row in rows]
+
+
 # ---------------------------------------------------------------- 收尾阶段
 async def _finalize(
     session: AsyncSession, ctx: RequestContext, prepared: PreparedChat, result: RunResult
@@ -311,6 +407,9 @@ async def _finalize(
                     "action_token": token,
                 },
             })
+    output = dict(prepared.run.output or {})
+    output["hidden_responses"] = hidden_out
+    prepared.run.output = output
     return ChatResponse(
         conversation_id=prepared.conversation.id,
         run_id=prepared.run.id,
@@ -380,9 +479,12 @@ async def chat(
     app_id: uuid.UUID,
     payload: ChatRequest,
     *,
+    idempotency_key: str | None = None,
     runner: AgentRunner | None = None,
 ) -> ChatResponse:
-    prepared = await prepare_chat(session, ctx, app_id, payload, runner=runner)
+    prepared = await prepare_chat(session, ctx, app_id, payload, runner=runner, idempotency_key=idempotency_key)
+    if prepared.replay_events is not None:
+        return _response_for_existing_run(prepared)
     result = await _execute(prepared, ctx, app_id, payload)
     return await _finalize(session, ctx, prepared, result)
 
@@ -394,6 +496,7 @@ async def stream_chat(
     app_id: uuid.UUID,
     payload: ChatRequest,
     *,
+    idempotency_key: str | None = None,
     runner: AgentRunner | None = None,
 ) -> AsyncIterator[dict]:
     """产出事件流（由接口层转成 SSE 文本）。
@@ -401,14 +504,38 @@ async def stream_chat(
     事件顺序：meta → (status/route/rag/token)* → hidden* → done
     即使执行抛错，也会发 done，保证前端不会永久等待。
     """
-    prepared = await prepare_chat(session, ctx, app_id, payload, runner=runner)
+    prepared = await prepare_chat(session, ctx, app_id, payload, runner=runner, idempotency_key=idempotency_key)
+    if prepared.replay_events is not None:
+        last_sequence = 0
+        for event in prepared.replay_events:
+            last_sequence = max(last_sequence, int(event.get("id", 0)))
+            yield event
+        if prepared.run.status not in TaskStatus.TERMINAL:
+            deadline = asyncio.get_running_loop().time() + get_settings().task_timeout_ms / 1000
+            while prepared.run.status not in TaskStatus.TERMINAL and asyncio.get_running_loop().time() < deadline:
+                await asyncio.sleep(0.1)
+                for event in await _load_stream_events(session, ctx.tenant_id, prepared.run.id, last_sequence):
+                    last_sequence = max(last_sequence, int(event.get("id", 0)))
+                    yield event
+                await session.refresh(prepared.run)
+        return
 
-    yield {
+    await session.commit()
+    await set_tenant_context(session, str(ctx.tenant_id))
+    sequence = 0
+
+    async def _durable(event: dict) -> dict:
+        nonlocal sequence
+        sequence += 1
+        stored = {**event, "id": sequence, "run_id": str(prepared.run.id)}
+        await _persist_stream_event(session, ctx.tenant_id, prepared.run.id, sequence, stored)
+        return stored
+
+    yield await _durable({
         "type": "meta",
-        "run_id": str(prepared.run.id),
         "conversation_id": str(prepared.conversation.id),
         "application_id": str(app_id),
-    }
+    })
 
     queue: asyncio.Queue[dict] = asyncio.Queue()
 
@@ -428,7 +555,7 @@ async def stream_chat(
             event = await asyncio.wait_for(queue.get(), timeout=0.05)
         except TimeoutError:
             continue
-        yield event
+        yield await _durable(event)
 
     try:
         result = await task
@@ -440,13 +567,12 @@ async def stream_chat(
 
     # 流式路径下 token 已经实时推过，这里只补发隐藏返回与终态
     for item in response.hidden_responses:
-        yield {**item, "type": "hidden"}
+        yield await _durable({**item, "type": "hidden"})
 
-    yield {
+    yield await _durable({
         "type": "done",
         "status": response.status,
-        "run_id": str(response.run_id),
         "token_usage": response.token_usage,
         "rag_sources": response.rag_sources,
         "reason": result.reason,
-    }
+    })

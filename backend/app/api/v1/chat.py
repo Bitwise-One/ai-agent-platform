@@ -36,7 +36,8 @@ async def chat(
     db: AsyncSession = DbDep,
 ) -> ApiResponse[ChatResponse]:
     """非流式对话：阻塞直到图执行完成。"""
-    result = await chat_service.chat(db, ctx, app_id, payload)
+    idempotency_key = request.headers.get("Idempotency-Key") or payload.idempotency_key
+    result = await chat_service.chat(db, ctx, app_id, payload, idempotency_key=idempotency_key)
     return ApiResponse(data=result, request_id=get_request_id(request))
 
 
@@ -81,15 +82,17 @@ async def chat_stream(
     - `X-Accel-Buffering: no` 关闭 Nginx 缓冲，避免 token 被攒批下发。
     """
 
+    idempotency_key = request.headers.get("Idempotency-Key") or payload.idempotency_key
+
     async def _gen():
         sequence = 0
         run_id: str | None = None
         try:
-            async for event in chat_service.stream_chat(db, ctx, app_id, payload):
+            async for event in chat_service.stream_chat(db, ctx, app_id, payload, idempotency_key=idempotency_key):
                 if event.get("type") == "meta":
                     run_id = event.get("run_id")
-                sequence += 1
-                yield _format_sse({**event, "id": sequence, "run_id": run_id})
+                sequence = max(sequence + 1, int(event.get("id", 0)))
+                yield _format_sse({**event, "id": event.get("id", sequence), "run_id": event.get("run_id", run_id)})
         except Exception as exc:  # noqa: BLE001 - 兜底：任何异常都要给前端终止信号
             run_id = run_id or f"unstarted-{get_request_id(request)}"
             sequence += 1

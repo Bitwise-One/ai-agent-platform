@@ -11,6 +11,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -112,9 +113,15 @@ class TaskRun(Base):
     """一次执行，严格遵循状态机。"""
 
     __tablename__ = "task_run"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "application_id", "idempotency_key", name="uq_task_run_app_idempotency"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, comment="主键，UUID")
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, comment="所属租户（RLS 依赖）")
+    application_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("application.id"), nullable=True, comment="所属应用（幂等键作用域）")
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), comment="客户端幂等键（租户与应用内唯一）")
+    request_hash: Mapped[str | None] = mapped_column(String(64), comment="请求内容 SHA-256，阻止同键异请求")
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("conversation.id"), nullable=False, index=True,
         comment="所属会话",
@@ -142,6 +149,17 @@ class TaskRun(Base):
         index=True,
         comment="创建时间（服务端写入，UTC）",
     )
+
+
+class RunStreamEvent(Base):
+    __tablename__ = "run_stream_event"
+
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("task_run.id"), primary_key=True, comment="所属任务运行")
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True, comment="run 内单调递增事件序号")
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True, comment="所属租户（RLS 依赖）")
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="SSE 事件类型")
+    data: Mapped[dict] = mapped_column(JSONType, nullable=False, comment="事件数据（与 SSE data 一致）")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now(), comment="事件产生时间（UTC）")
 
 
 class Checkpoint(Base):

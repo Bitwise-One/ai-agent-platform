@@ -286,6 +286,38 @@ async def test_chat_stream_emits_sse_events(client):
 
 
 @pytest.mark.asyncio
+async def test_stream_retry_replays_persisted_events_with_same_idempotency_key(client):
+    tenant, app_id = await _bootstrap(client, "t-sse-idempotency")
+    headers = {TENANT_HEADER: tenant, "X-App-Id": app_id, "Idempotency-Key": "retry-key-001"}
+    body = {"user_id": "u-retry", "message": "请计算 1 加 1"}
+
+    async def read_events():
+        lines = []
+        async with client.stream("POST", f"/api/v1/apps/{app_id}/chat/stream", json=body, headers=headers) as response:
+            assert response.status_code == 200
+            async for line in response.aiter_lines():
+                lines.append(line)
+        frames = [frame for frame in "\n".join(lines).split("\n\n") if frame]
+        return [
+            json.loads(next(line[5:].strip() for line in frame.splitlines() if line.startswith("data:")))
+            for frame in frames
+        ]
+
+    first = await read_events()
+    second = await read_events()
+    assert first[-1]["type"] == second[-1]["type"] == "done"
+    assert [event["id"] for event in first] == [event["id"] for event in second]
+    assert {event["run_id"] for event in first} == {event["run_id"] for event in second}
+
+    conflict = await client.post(
+        f"/api/v1/apps/{app_id}/chat",
+        json={"user_id": "u-retry", "message": "different payload"},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_hidden_action_has_capability_token_and_is_consumed_once(client):
     from app.graph.builder import AgentResult
 
@@ -303,7 +335,7 @@ async def test_hidden_action_has_capability_token_and_is_consumed_once(client):
 
     original_chat = chat_service.chat
 
-    async def _chat(db, ctx, requested_app_id, payload, *, runner=None):
+    async def _chat(db, ctx, requested_app_id, payload, *, runner=None, idempotency_key=None):
         return await original_chat(db, ctx, requested_app_id, payload, runner=hidden_runner)
 
     chat_service.chat = _chat
