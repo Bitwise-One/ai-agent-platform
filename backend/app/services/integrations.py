@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import ipaddress
+import json
 import socket
 import uuid
-from typing import TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urlsplit
 
 from sqlalchemy import delete, func, select
@@ -23,6 +25,7 @@ from app.schemas.integration import (
 )
 
 T = TypeVar("T", McpServer, Skill)
+_SKILL_EXECUTION_SLOTS = asyncio.Semaphore(4)
 
 
 async def _validate_mcp_endpoint(url: str) -> None:
@@ -171,7 +174,8 @@ async def delete_mcp(session: AsyncSession, tenant_id: uuid.UUID, mcp_id: uuid.U
 
 
 async def create_skill(session: AsyncSession, tenant_id: uuid.UUID, payload: SkillCreate) -> Skill:
-    row = Skill(tenant_id=tenant_id, name=payload.name, description=payload.description, instructions=payload.instructions, params_schema=payload.params_schema, trigger=payload.trigger)
+    module = base64.b64decode(payload.wasm_module_base64) if payload.wasm_module_base64 else None
+    row = Skill(tenant_id=tenant_id, name=payload.name, description=payload.description, instructions=payload.instructions, wasm_module=module, params_schema=payload.params_schema, trigger=payload.trigger)
     session.add(row)
     await session.flush()
     return row
@@ -198,7 +202,11 @@ async def get_skill(session: AsyncSession, tenant_id: uuid.UUID, skill_id: uuid.
 
 async def update_skill(session: AsyncSession, tenant_id: uuid.UUID, skill_id: uuid.UUID, payload: SkillUpdate) -> Skill:
     row = await get_skill(session, tenant_id, skill_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    module_b64 = changes.pop("wasm_module_base64", ...)
+    if module_b64 is not ...:
+        row.wasm_module = base64.b64decode(module_b64) if module_b64 else None
+    for key, value in changes.items():
         setattr(row, key, value)
     await session.flush()
     return row
@@ -208,6 +216,95 @@ async def delete_skill(session: AsyncSession, tenant_id: uuid.UUID, skill_id: uu
     row = await get_skill(session, tenant_id, skill_id)
     await session.delete(row)
     await session.flush()
+
+
+def _execute_wasm(module_bytes: bytes, params_json: bytes) -> dict:
+    import wasmtime
+
+    config = wasmtime.Config()
+    config.consume_fuel = True
+    engine = wasmtime.Engine(config)
+    module = wasmtime.Module(engine, module_bytes)
+    if module.imports:
+        raise ValueError("WebAssembly Skill 禁止导入宿主函数或 WASI")
+    store = wasmtime.Store(engine)
+    store.set_fuel(1_000_000)
+    store.set_limits(memory_size=16 * 1024 * 1024, table_elements=1024, instances=1, tables=1, memories=1)
+    instance = wasmtime.Instance(store, module, [])
+    exports = instance.exports(store)
+    memory, allocate, run = (exports.get(name) for name in ("memory", "alloc", "run"))
+    if memory is None or allocate is None or run is None:
+        raise ValueError("模块必须导出 memory、alloc(i32)->i32 与 run(i32,i32)->i64")
+    input_ptr = allocate(store, len(params_json))
+    if not isinstance(input_ptr, int) or input_ptr < 0 or input_ptr + len(params_json) > memory.data_len(store):
+        raise ValueError("Skill 分配了无效输入内存")
+    memory.write(store, params_json, input_ptr)
+    packed = run(store, input_ptr, len(params_json))
+    if not isinstance(packed, int):
+        raise ValueError("Skill run 必须返回打包的 i64 指针与长度")
+    packed &= (1 << 64) - 1
+    output_ptr, output_len = packed >> 32, packed & 0xFFFFFFFF
+    if output_len > 64 * 1024 or output_ptr + output_len > memory.data_len(store):
+        raise ValueError("Skill 输出长度或内存范围无效")
+    result = json.loads(bytes(memory.read(store, output_ptr, output_ptr + output_len)))
+    if not isinstance(result, dict):
+        raise ValueError("Skill 必须返回 JSON 对象")
+    return result
+
+
+def _validate_local_schema(schema: dict, params: dict) -> None:
+    from jsonschema import Draft202012Validator
+
+    if len(json.dumps(schema, ensure_ascii=False).encode("utf-8")) > 32 * 1024:
+        raise AppError(10001, "Skill 参数 Schema 超过 32 KiB", 422)
+
+    def reject_refs(value: Any) -> None:
+        if isinstance(value, dict):
+            if "$ref" in value:
+                raise AppError(10001, "Skill 参数 Schema 不允许引用", 422)
+            for child in value.values():
+                reject_refs(child)
+        elif isinstance(value, list):
+            for child in value:
+                reject_refs(child)
+
+    reject_refs(schema)
+    try:
+        validator = Draft202012Validator(schema)
+        validator.check_schema(schema)
+        error = next(validator.iter_errors(params), None)
+    except Exception as exc:
+        raise AppError(10001, "Skill 参数 Schema 无效", 422) from exc
+    if error:
+        raise AppError(10001, f"Skill 参数不符合 Schema: {error.message[:200]}", 422)
+
+
+async def invoke_skill(
+    session: AsyncSession, tenant_id: uuid.UUID, skill_id: uuid.UUID, params: dict
+) -> dict:
+    skill = await get_skill(session, tenant_id, skill_id)
+    if skill.wasm_module is None:
+        raise AppError(10001, "此 Skill 未配置 WebAssembly 执行模块", 409)
+    params_json = json.dumps(params, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(params_json) > 64 * 1024:
+        raise AppError(10001, "Skill 入参不能超过 64 KiB", 422)
+    if skill.params_schema:
+        _validate_local_schema(skill.params_schema, params)
+    try:
+        async with _SKILL_EXECUTION_SLOTS:
+            execution = asyncio.create_task(
+                asyncio.to_thread(_execute_wasm, skill.wasm_module, params_json)
+            )
+            try:
+                return await asyncio.shield(execution)
+            except asyncio.CancelledError:
+                try:
+                    await execution
+                except Exception:
+                    pass
+                raise
+    except Exception as exc:
+        raise AppError(10005, "Skill 沙箱执行失败或超出资源限制", 422) from exc
 
 
 async def _get_agent(session: AsyncSession, tenant_id: uuid.UUID, app_id: uuid.UUID, agent_id: uuid.UUID) -> Agent:

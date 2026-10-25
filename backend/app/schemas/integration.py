@@ -1,10 +1,28 @@
 """MCP 服务与 Skill 的请求/响应模型。"""
 
+import base64
+import binascii
 import uuid
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+MAX_WASM_MODULE_BYTES = 256 * 1024
+
+
+def _validate_wasm_base64(value: str | None) -> str | None:
+    if value is None:
+        return value
+    try:
+        module = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("wasm_module_base64 必须是合法 Base64") from exc
+    if not module.startswith(b"\x00asm"):
+        raise ValueError("技能模块不是有效的 WebAssembly 二进制")
+    if len(module) > MAX_WASM_MODULE_BYTES:
+        raise ValueError("WebAssembly 模块不能超过 256 KiB")
+    return value
 
 
 class McpServerCreate(BaseModel):
@@ -77,16 +95,22 @@ class SkillCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = None
     instructions: str | None = Field(default=None, max_length=8000)
+    wasm_module_base64: str | None = Field(default=None, max_length=350_000)
     params_schema: dict[str, Any] | None = None
     trigger: dict[str, Any] | None = None
+
+    _validate_wasm = field_validator("wasm_module_base64")(_validate_wasm_base64)
 
 
 class SkillUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = None
     instructions: str | None = Field(default=None, max_length=8000)
+    wasm_module_base64: str | None = Field(default=None, max_length=350_000)
     params_schema: dict[str, Any] | None = None
     trigger: dict[str, Any] | None = None
+
+    _validate_wasm = field_validator("wasm_module_base64")(_validate_wasm_base64)
 
 
 class SkillOut(BaseModel):
@@ -113,3 +137,7 @@ class IntegrationBind(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("ids 不得包含重复值")
         return value
+
+
+class SkillInvokeRequest(BaseModel):
+    params: dict[str, Any] = Field(default_factory=dict)

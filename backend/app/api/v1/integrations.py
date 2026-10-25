@@ -13,6 +13,7 @@ from app.schemas.integration import (
     McpServerUpdate,
     McpToolOut,
     SkillCreate,
+    SkillInvokeRequest,
     SkillOut,
     SkillUpdate,
 )
@@ -115,3 +116,15 @@ async def update_skill(skill_id: uuid.UUID, payload: SkillUpdate, request: Reque
 async def delete_skill(skill_id: uuid.UUID, request: Request, ctx: RequestContext = ContextDep, db: AsyncSession = DbDep):
     await service.delete_skill(db, ctx.tenant_id, skill_id)
     return ApiResponse(data={"deleted": str(skill_id)}, request_id=get_request_id(request))
+
+
+@skill_router.post("/{skill_id}/invoke", response_model=ApiResponse[dict])
+async def invoke_skill(
+    skill_id: uuid.UUID,
+    payload: SkillInvokeRequest,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+):
+    result = await service.invoke_skill(db, ctx.tenant_id, skill_id, payload.params)
+    return ApiResponse(data={"skill_id": str(skill_id), "result": result}, request_id=get_request_id(request))

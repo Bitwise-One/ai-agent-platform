@@ -1,5 +1,7 @@
 """M4 MCP/Skill 管理与 Agent 绑定契约。"""
 
+import base64
+
 import pytest
 
 from app.services import integrations as integration_service
@@ -160,3 +162,85 @@ async def test_skill_instructions_are_registered_and_triggered_per_agent(client)
     state["user_input"] = "今天天气如何"
     assert _active_skill_instructions(agent, state) == ""
     assert _active_skill_instructions("different-agent", state) == ""
+
+
+@pytest.mark.asyncio
+async def test_wasm_skill_invocation_is_bounded_and_tenant_scoped(client):
+    import wasmtime
+
+    _, _, _, headers = await bootstrap(client, "t-wasm-skill")
+    wat = r'''(module
+      (memory (export "memory") 1)
+      (func (export "alloc") (param i32) (result i32) i32.const 100)
+      (func (export "run") (param i32 i32) (result i64) i64.const 68719476747)
+      (data (i32.const 16) "{\"ok\":true}"))'''
+    module_b64 = base64.b64encode(wasmtime.wat2wasm(wat)).decode("ascii")
+    created = await client.post(
+        "/api/v1/skills",
+        json={
+            "name": "计算 Skill",
+            "params_schema": {"type": "object", "required": ["count"], "properties": {"count": {"type": "integer"}}},
+            "wasm_module_base64": module_b64,
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200, created.text
+    assert "wasm_module_base64" not in created.json()["data"]
+    skill_id = created.json()["data"]["id"]
+    invoked = await client.post(f"/api/v1/skills/{skill_id}/invoke", json={"params": {"count": 2}}, headers=headers)
+    assert invoked.status_code == 200, invoked.text
+    assert invoked.json()["data"]["result"] == {"ok": True}
+    invalid = await client.post(f"/api/v1/skills/{skill_id}/invoke", json={"params": {}}, headers=headers)
+    assert invalid.status_code == 422
+
+    other = await client.post("/api/v1/tenants", json={"name": "other", "slug": "t-wasm-other"})
+    denied = await client.post(
+        f"/api/v1/skills/{skill_id}/invoke",
+        json={"params": {"count": 2}},
+        headers={"X-Tenant-Id": other.json()["data"]["id"]},
+    )
+    assert denied.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_wasm_skill_rejects_host_imports(client):
+    import wasmtime
+
+    _, _, _, headers = await bootstrap(client, "t-wasm-import")
+    module_b64 = base64.b64encode(wasmtime.wat2wasm('(module (import "host" "open" (func)))')).decode("ascii")
+    created = await client.post(
+        "/api/v1/skills",
+        json={"name": "导入模块", "wasm_module_base64": module_b64},
+        headers=headers,
+    )
+    assert created.status_code == 200, created.text
+    response = await client.post(
+        f"/api/v1/skills/{created.json()['data']['id']}/invoke",
+        json={"params": {}},
+        headers=headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_wasm_skill_fuel_limit_stops_nonterminating_module(client):
+    import wasmtime
+
+    _, _, _, headers = await bootstrap(client, "t-wasm-fuel")
+    wat = '''(module
+      (memory (export "memory") 1)
+      (func (export "alloc") (param i32) (result i32) i32.const 100)
+      (func (export "run") (param i32 i32) (result i64)
+        (loop $forever (br $forever))
+        i64.const 0))'''
+    module_b64 = base64.b64encode(wasmtime.wat2wasm(wat)).decode("ascii")
+    created = await client.post(
+        "/api/v1/skills", json={"name": "无限循环", "wasm_module_base64": module_b64}, headers=headers
+    )
+    assert created.status_code == 200, created.text
+    response = await client.post(
+        f"/api/v1/skills/{created.json()['data']['id']}/invoke",
+        json={"params": {}},
+        headers=headers,
+    )
+    assert response.status_code == 422
