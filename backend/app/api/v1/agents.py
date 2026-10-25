@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ContextDep, DbDep, RequestContext, get_request_id
 from app.schemas.agent import AgentCreate, AgentKbBind, AgentOut, AgentUpdate
 from app.schemas.common import ApiResponse
-from app.schemas.integration import IntegrationBind, McpToolBind
+from app.schemas.integration import IntegrationBind, McpToolBind, McpToolCallRequest
 from app.services import agents as agent_service
 from app.services import integrations as integration_service
 
@@ -174,3 +174,25 @@ async def bind_mcp_tools(
 ) -> ApiResponse[dict]:
     ids = await integration_service.bind_mcp_tools(db, ctx.tenant_id, app_id, agent_id, payload.ids)
     return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
+
+
+@router.post("/{agent_id}/mcp-tools/{tool_id}/call", response_model=ApiResponse[dict])
+async def call_mcp_tool(
+    app_id: uuid.UUID,
+    agent_id: uuid.UUID,
+    tool_id: uuid.UUID,
+    payload: McpToolCallRequest,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    result = await integration_service.call_agent_mcp_tool(
+        db,
+        ctx.tenant_id,
+        app_id,
+        agent_id,
+        tool_id,
+        payload,
+        get_request_id(request),
+    )
+    return ApiResponse(data=result, request_id=get_request_id(request))

@@ -1,6 +1,7 @@
 """M4 MCP/Skill 管理与 Agent 绑定契约。"""
 
 import base64
+import json
 
 import pytest
 
@@ -309,3 +310,66 @@ async def test_wasm_skill_fuel_limit_stops_nonterminating_module(client):
         headers=headers,
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_calls_are_bound_logged_and_tenant_scoped(client, monkeypatch):
+    _, app, agent, headers = await bootstrap(client, "t-mcp-call-log")
+    created = await client.post(
+        "/api/v1/mcp-servers",
+        json={"name": "CRM", "transport": "http", "config": {"url": "https://mcp.example/mcp"}},
+        headers=headers,
+    )
+    mcp_id = created.json()["data"]["id"]
+
+    async def fake_discover(_server):
+        return [{
+            "name": "lookup",
+            "description": "查找客户",
+            "input_schema": {"type": "object", "required": ["email"], "properties": {"email": {"type": "string"}}},
+        }]
+
+    monkeypatch.setattr(integration_service, "_fetch_mcp_tools", fake_discover)
+    discovered = await client.post(f"/api/v1/mcp-servers/{mcp_id}/discover", headers=headers)
+    tool_id = discovered.json()["data"]["tools"][0]["id"]
+    bound = await client.put(
+        f"/api/v1/apps/{app}/agents/{agent}/mcp-tools", json={"ids": [tool_id]}, headers=headers
+    )
+    assert bound.status_code == 200
+
+    outcomes = iter([
+        {"is_error": False, "content": ["customer record"]},
+        {"is_error": True, "content": ["remote failure detail"]},
+    ])
+
+    async def fake_call(_server, _name, _params):
+        return next(outcomes)
+
+    monkeypatch.setattr(integration_service, "_call_mcp_tool", fake_call)
+    call_url = f"/api/v1/apps/{app}/agents/{agent}/mcp-tools/{tool_id}/call"
+    params = {"email": "alice@example.test"}
+    first = await client.post(call_url, json={"params": params}, headers=headers)
+    second = await client.post(call_url, json={"params": params}, headers=headers)
+    assert first.json()["data"]["status"] == "success"
+    assert second.json()["data"]["status"] == "error"
+
+    logs = await client.get("/api/v1/mcp-servers/calls/logs?status=error", headers=headers)
+    assert logs.status_code == 200, logs.text
+    data = logs.json()["data"]
+    assert data["total"] == 1
+    assert data["items"][0]["input_summary"] == {
+        "kind": "object",
+        "items": 1,
+        "bytes": len(json.dumps(params, ensure_ascii=False, default=str).encode("utf-8")),
+    }
+    serialized_logs = str(data)
+    assert "alice@example.test" not in serialized_logs
+    assert "customer record" not in serialized_logs
+    assert "remote failure detail" not in serialized_logs
+
+    other = await client.post("/api/v1/tenants", json={"name": "other", "slug": "t-mcp-log-other"})
+    hidden = await client.get(
+        "/api/v1/mcp-servers/calls/logs",
+        headers={"X-Tenant-Id": other.json()["data"]["id"]},
+    )
+    assert hidden.json()["data"]["total"] == 0

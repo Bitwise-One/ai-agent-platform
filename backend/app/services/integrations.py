@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import socket
+import time
 import uuid
 from typing import Any, TypeVar
 from urllib.parse import urlsplit
@@ -17,10 +18,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.errors import AppError, NotFound
-from app.models import Agent, AgentMcp, AgentMcpTool, AgentSkill, McpServer, McpToolRecord, Skill
+from app.models import (
+    Agent,
+    AgentMcp,
+    AgentMcpTool,
+    AgentSkill,
+    McpCallLog,
+    McpServer,
+    McpToolRecord,
+    Skill,
+)
 from app.schemas.integration import (
     McpServerCreate,
     McpServerUpdate,
+    McpToolCallRequest,
     SkillCreate,
     SkillUpdate,
 )
@@ -400,6 +411,134 @@ async def get_agent_mcp_tool_ids(
         .order_by(AgentMcpTool.tool_id)
     )
     return list(rows)
+
+
+def _summary(value: Any) -> dict:
+    try:
+        encoded = json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")
+    except Exception:
+        encoded = b""
+    if isinstance(value, dict):
+        return {"kind": "object", "items": len(value), "bytes": len(encoded)}
+    if isinstance(value, list):
+        return {"kind": "array", "items": len(value), "bytes": len(encoded)}
+    return {"kind": type(value).__name__, "bytes": len(encoded)}
+
+
+async def call_agent_mcp_tool(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    app_id: uuid.UUID,
+    agent_id: uuid.UUID,
+    tool_id: uuid.UUID,
+    payload: McpToolCallRequest,
+    request_id: str,
+) -> dict:
+    await _get_agent(session, tenant_id, app_id, agent_id)
+    row = await session.execute(
+        select(McpToolRecord, McpServer)
+        .join(McpServer, McpServer.id == McpToolRecord.mcp_id)
+        .join(AgentMcpTool, AgentMcpTool.tool_id == McpToolRecord.id)
+        .where(
+            McpToolRecord.id == tool_id,
+            McpToolRecord.tenant_id == tenant_id,
+            McpToolRecord.enabled.is_(True),
+            McpServer.tenant_id == tenant_id,
+            McpServer.status == "active",
+            AgentMcpTool.agent_id == agent_id,
+        )
+    )
+    tool, server = row.first() or (None, None)
+    if tool is None:
+        raise NotFound("MCP 工具不存在、未绑定或不可用")
+
+    started = time.perf_counter()
+    status, error_code, result = "success", None, None
+    try:
+        _validate_local_schema(tool.input_schema, payload.params)
+        result = await _call_mcp_tool(server, tool.name, payload.params)
+        if result.get("is_error"):
+            status, error_code = "error", "tool_error"
+    except Exception as exc:
+        status = "error"
+        error_code = str(exc.code) if isinstance(exc, AppError) else type(exc).__name__[:64]
+        result = {"error": "MCP tool call failed", "error_code": error_code}
+    elapsed = int((time.perf_counter() - started) * 1000)
+    session.add(
+        McpCallLog(
+            tenant_id=tenant_id,
+            application_id=app_id,
+            agent_id=agent_id,
+            mcp_id=server.id,
+            tool_id=tool.id,
+            request_id=request_id,
+            status=status,
+            latency_ms=elapsed,
+            error_code=error_code,
+            input_summary=_summary(payload.params),
+            output_summary=_summary(result),
+        )
+    )
+    await session.flush()
+    return {"status": status, "result": result, "latency_ms": elapsed}
+
+
+async def _call_mcp_tool(server: McpServer, name: str, params: dict) -> dict:
+    if server.transport == "stdio":
+        raise AppError(10003, "stdio MCP 调用必须由受控 Worker 执行", 409)
+    url = server.config.get("url")
+    if not isinstance(url, str):
+        raise AppError(10001, "MCP config 必须包含 endpoint url", 400)
+    await _validate_mcp_endpoint(url)
+    headers = _mcp_auth_headers(server)
+    from mcp.client.session import ClientSession
+
+    async with asyncio.timeout(20):
+        if server.transport == "sse":
+            from mcp.client.sse import sse_client
+
+            context = sse_client(url, headers=headers, timeout=5, sse_read_timeout=15)
+            async with context as (read_stream, write_stream):
+                async with ClientSession(read_stream, write_stream) as client:
+                    await client.initialize()
+                    result = await client.call_tool(name, arguments=params)
+        else:
+            from mcp.client.streamable_http import streamable_http_client
+            from mcp.shared._httpx_utils import create_mcp_http_client
+
+            async with create_mcp_http_client(headers=headers) as http_client:
+                async with streamable_http_client(url, http_client=http_client) as (read_stream, write_stream, *_):
+                    async with ClientSession(read_stream, write_stream) as client:
+                        await client.initialize()
+                        result = await client.call_tool(name, arguments=params)
+    texts: list[str] = []
+    remaining = 256 * 1024
+    for item in result.content:
+        text = getattr(item, "text", None)
+        if not isinstance(text, str) or remaining <= 0:
+            continue
+        excerpt = text[:remaining]
+        texts.append(excerpt)
+        remaining -= len(excerpt)
+    return {"is_error": bool(result.isError), "content": texts}
+
+
+async def list_mcp_call_logs(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    offset: int,
+    limit: int,
+    status: str | None = None,
+) -> tuple[list[McpCallLog], int]:
+    filters = [McpCallLog.tenant_id == tenant_id]
+    if status:
+        filters.append(McpCallLog.status == status)
+    total = await session.scalar(select(func.count()).select_from(McpCallLog).where(*filters)) or 0
+    rows = await session.scalars(
+        select(McpCallLog).where(*filters).order_by(McpCallLog.created_at.desc()).offset(offset).limit(limit)
+    )
+    return list(rows), total
 
 
 async def get_binding_ids(session: AsyncSession, agent_id: uuid.UUID, kind: str) -> list[uuid.UUID]:

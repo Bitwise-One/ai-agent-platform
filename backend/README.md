@@ -59,6 +59,8 @@ uv run alembic check                 # 校验「模型 vs 迁移」零差异
 
 MCP 配置只保存凭据引用，例如 `{"url":"https://mcp.example/mcp","auth":{"scheme":"bearer","secret_ref":"CRM_READONLY"}}`。实际令牌由部署环境注入为 `MCP_SECRET_CRM_READONLY`；请求时才注入 Bearer 请求头，管理接口只回显引用。轮换时更新部署 Secret 并滚动重启服务，禁止把实际令牌写入 MCP `config`、仓库或日志。
 
+工具调用必须是 Agent 已绑定的工具：`POST /api/v1/apps/{app_id}/agents/{agent_id}/mcp-tools/{tool_id}/call`。租户可通过 `GET /api/v1/mcp-servers/calls/logs` 分页查询调用状态、耗时与错误类型；日志只存参数/结果形状和字节数，不存实际值。
+
 ## 接口速览
 
 ```
