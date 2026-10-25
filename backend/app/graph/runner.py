@@ -54,6 +54,8 @@ async def run_workflow(
     max_iterations: int | None = None,
     timeout_ms: int | None = None,
     skills_by_agent: dict[str, list[dict]] | None = None,
+    mcp_tools_by_agent: dict[str, list[dict]] | None = None,
+    mcp_tool_executor=None,
 ) -> RunResult:
     """执行一次工作流。
 
@@ -88,6 +90,8 @@ async def run_workflow(
         run_id=run_id,
         user_input=user_input,
         skills_by_agent=skills_by_agent,
+        mcp_tools_by_agent=mcp_tools_by_agent,
+        mcp_tool_executor=mcp_tool_executor,
     )
 
     try:

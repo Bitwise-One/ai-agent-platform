@@ -14,6 +14,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,18 +28,22 @@ from app.graph.spec import WorkflowSpec
 from app.knowledge import service as kb_service
 from app.models import (
     Agent,
+    AgentMcpTool,
     AgentSkill,
     Application,
     Conversation,
     HiddenResponse,
+    McpToolRecord,
     Skill,
     TaskRun,
     TaskStatus,
     Workflow,
 )
 from app.schemas.conversation import ChatRequest, ChatResponse, ConversationCreate
+from app.schemas.integration import McpToolCallRequest
 from app.services import agents as agent_service
 from app.services import conversations as conv_service
+from app.services import integrations as integration_service
 from app.services import models as model_service
 from app.services.tenants import ensure_tenant_matches
 
@@ -55,6 +60,8 @@ class PreparedChat:
     retriever: RagRetriever | None
     runner: AgentRunner
     skills_by_agent: dict[str, list[dict]]
+    mcp_tools_by_agent: dict[str, list[dict]]
+    mcp_tool_executor: Any
 
 
 # ---------------------------------------------------------------- 准备阶段
@@ -162,6 +169,38 @@ async def prepare_chat(
         skills_by_agent.setdefault(str(agent_id), []).append(
             {"name": name, "instructions": instructions, "trigger": trigger or {}}
         )
+    mcp_rows = await session.execute(
+        select(AgentMcpTool.agent_id, McpToolRecord.id, McpToolRecord.name, McpToolRecord.description, McpToolRecord.input_schema)
+        .join(McpToolRecord, McpToolRecord.id == AgentMcpTool.tool_id)
+        .join(Agent, Agent.id == AgentMcpTool.agent_id)
+        .where(
+            Agent.tenant_id == ctx.tenant_id,
+            Agent.application_id == app.id,
+            Agent.deleted_at.is_(None),
+            McpToolRecord.tenant_id == ctx.tenant_id,
+            McpToolRecord.enabled.is_(True),
+        )
+    )
+    mcp_tools_by_agent: dict[str, list[dict]] = {}
+    for agent_id, tool_id, name, description, input_schema in mcp_rows:
+        mcp_tools_by_agent.setdefault(str(agent_id), []).append(
+            {"id": str(tool_id), "name": name, "description": description or "", "input_schema": input_schema or {}}
+        )
+
+    async def execute_mcp_tool(agent_id: str, tool_id: str, params: dict) -> dict:
+        try:
+            aid = uuid.UUID(agent_id)
+            tid = uuid.UUID(tool_id)
+        except (ValueError, TypeError) as exc:
+            raise NotFound("MCP 工具不存在或未绑定") from exc
+        return await integration_service.call_agent_mcp_tool(
+            session, ctx.tenant_id, app.id, aid, tid,
+            McpToolCallRequest(params=params), ctx.request_id,
+        )
+
+    async def execute_bound_mcp_tool(agent_id: str, tool_id: str, params: dict) -> dict:
+        return await execute_mcp_tool(agent_id, tool_id, params)
+
     return PreparedChat(
         conversation=conversation,
         run=run,
@@ -169,6 +208,8 @@ async def prepare_chat(
         retriever=_make_retriever(session, ctx.tenant_id),
         runner=runner or llm_agent_runner,
         skills_by_agent=skills_by_agent,
+        mcp_tools_by_agent=mcp_tools_by_agent,
+        mcp_tool_executor=execute_bound_mcp_tool,
     )
 
 
@@ -194,6 +235,8 @@ async def _execute(
             retriever=prepared.retriever,
             emitter=emitter,
             skills_by_agent=prepared.skills_by_agent,
+            mcp_tools_by_agent=prepared.mcp_tools_by_agent,
+            mcp_tool_executor=prepared.mcp_tool_executor,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("工作流调度异常")

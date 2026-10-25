@@ -77,6 +77,33 @@ async def test_gateway_falls_back_on_provider_error(monkeypatch):
     assert "降级测试" in resp.text
 
 
+@pytest.mark.asyncio
+async def test_gateway_passes_tools_to_provider_and_returns_tool_calls():
+    from app.gateway.base import LLMResponse
+
+    class ToolProvider:
+        name = "tool-provider"
+
+        async def complete(self, messages, **kwargs):
+            assert kwargs["tools"][0]["function"]["name"] == "lookup"
+            return LLMResponse(
+                text="",
+                model="tool-model",
+                tool_calls=[{"id": "call-1", "name": "lookup", "arguments": "{}"}],
+            )
+
+        async def stream(self, *args, **kwargs):
+            yield
+
+    gateway = ModelGateway()
+    gateway._llm = ToolProvider()  # noqa: SLF001
+    result = await gateway.complete(
+        [{"role": "user", "content": "lookup"}],
+        tools=[{"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}}],
+    )
+    assert result.tool_calls[0]["name"] == "lookup"
+
+
 def test_extract_hidden_strips_block():
     raw = '这是正文。[[HIDDEN]]{"action": "open_form", "payload": {"form_id": "f1"}}[[/HIDDEN]]'
     clean, hidden = extract_hidden(raw)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 
@@ -77,6 +78,9 @@ class OpenAICompatLLM:
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens
+        if kwargs.get("tools"):
+            payload["tools"] = kwargs["tools"]
+            payload["tool_choice"] = "auto"
 
         started = time.perf_counter()
         try:
@@ -97,7 +101,18 @@ class OpenAICompatLLM:
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         choices = data.get("choices") or [{}]
-        text = (choices[0].get("message") or {}).get("content") or ""
+        message = choices[0].get("message") or {}
+        text = message.get("content") or ""
+        tool_calls: list[dict[str, Any]] = []
+        for tool_call in message.get("tool_calls") or []:
+            function = tool_call.get("function") or {}
+            tool_calls.append(
+                {
+                    "id": tool_call.get("id"),
+                    "name": function.get("name"),
+                    "arguments": function.get("arguments"),
+                }
+            )
         usage = data.get("usage") or {}
         return LLMResponse(
             text=text,
@@ -106,6 +121,7 @@ class OpenAICompatLLM:
             tokens_out=int(usage.get("completion_tokens") or 0),
             latency_ms=latency_ms,
             finish_reason=choices[0].get("finish_reason") or "stop",
+            tool_calls=tool_calls,
             raw={"id": data.get("id")},
         )
 
