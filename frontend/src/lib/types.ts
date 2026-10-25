@@ -11,6 +11,7 @@ export interface Tenant {
   name: string;
   slug: string;
   status: string;
+  quota: Record<string, unknown>;
   created_at: string;
 }
 
@@ -31,6 +32,8 @@ export interface ModelConfig {
   name: string;
   provider: string;
   model_name: string;
+  base_url: string | null;
+  api_key_configured?: boolean;
   context_len: number | null;
   price_in: number | null;
   price_out: number | null;
@@ -224,6 +227,25 @@ export interface ChatResult {
   hidden_responses: HiddenResponse[];
   token_usage: number;
   rag_sources: RagSource[];
+}
+
+export interface Conversation {
+  id: string;
+  tenant_id: string;
+  application_id: string;
+  user_id: string;
+  title: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversation_id: string;
+  role: string;
+  content: string | null;
+  created_at: string;
 }
 
 export interface RouteInfo {

@@ -18,6 +18,7 @@ import { EASE, spring, softSpring } from "./lib/motion";
 import {
   Button,
   Card,
+  ConfirmProvider,
   ErrorNote,
   Field,
   Input,
@@ -28,6 +29,8 @@ import {
 import { AgentsPage } from "./pages/Agents";
 import { KnowledgePage } from "./pages/Knowledge";
 import { IntegrationsPage } from "./pages/Integrations";
+import { WorkspacePage } from "./pages/Workspace";
+import { ConversationsPage } from "./pages/Conversations";
 import { ModelsPage } from "./pages/Models";
 import { OverviewPage } from "./pages/Overview";
 import { PlaygroundPage } from "./pages/Playground";
@@ -321,6 +324,22 @@ function Routed() {
             }
           />
           <Route
+            path="/workspace"
+            element={
+              <PageShell>
+                <WorkspacePage />
+              </PageShell>
+            }
+          />
+          <Route
+            path="/conversations"
+            element={
+              <PageShell>
+                <ConversationsPage />
+              </PageShell>
+            }
+          />
+          <Route
             path="/playground"
             element={
               <PageShell>
@@ -352,7 +371,9 @@ export default function App() {
       <MotionConfig reducedMotion="user">
         <WorkspaceProvider>
           <ToastProvider>
-            <Routed />
+            <ConfirmProvider>
+              <Routed />
+            </ConfirmProvider>
           </ToastProvider>
         </WorkspaceProvider>
       </MotionConfig>

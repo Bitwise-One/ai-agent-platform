@@ -22,7 +22,9 @@ import {
   IconChat,
   IconDashboard,
   IconGraph,
+  IconHistory,
   IconPlug,
+  IconSettings,
   IconSparkle,
 } from "./icons";
 import { Select, Spinner } from "./ui";
@@ -34,7 +36,9 @@ const NAV = [
   { to: "/knowledge", label: "知识库", icon: IconBook },
   { to: "/models", label: "模型目录", icon: IconBrain },
   { to: "/integrations", label: "工具与 Skills", icon: IconPlug },
+  { to: "/workspace", label: "工作区管理", icon: IconSettings },
   { to: "/playground", label: "对话调试台", icon: IconChat },
+  { to: "/conversations", label: "会话记录", icon: IconHistory },
   { to: "/motion", label: "动效实验室", icon: IconSparkle },
 ];
 

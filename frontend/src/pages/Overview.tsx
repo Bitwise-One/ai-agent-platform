@@ -123,10 +123,9 @@ export function OverviewPage() {
                     {agents.data?.length ?? 0}
                   </div>
                 </div>
-                <div className="h-10 w-px bg-white/10" />
                 <div>
-                  <div className="text-[11px] text-white/50">服务状态</div>
-                  <div className="mt-1 text-sm font-medium text-[#9fe7c4]">可用</div>
+                  <div className="text-[11px] text-white/50">工作流</div>
+                  <div className="mt-1 text-xl font-semibold text-white">{flows.data?.length ?? 0}</div>
                 </div>
               </div>
             </div>

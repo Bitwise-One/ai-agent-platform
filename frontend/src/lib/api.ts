@@ -14,6 +14,8 @@ import type {
   Agent,
   Application,
   ChatResult,
+  Conversation,
+  ConversationMessage,
   GraphDefinition,
   KbDocument,
   KnowledgeBase,
@@ -122,8 +124,10 @@ export const api = {
 
 export const tenantsApi = {
   list: () => api.list<Tenant>("/api/v1/tenants?page_size=200"),
-  create: (name: string, slug: string) =>
-    api.post<Tenant>("/api/v1/tenants", { name, slug }),
+  create: (name: string, slug: string, quota?: Record<string, unknown>) =>
+    api.post<Tenant>("/api/v1/tenants", { name, slug, ...(quota ? { quota } : {}) }),
+  update: (id: string, body: Record<string, unknown>) => api.patch<Tenant>(`/api/v1/tenants/${id}`, body),
+  remove: (id: string) => api.del<unknown>(`/api/v1/tenants/${id}`),
 };
 
 export const appsApi = {
@@ -133,6 +137,7 @@ export const appsApi = {
   get: (id: string) => api.get<Application>(`/api/v1/apps/${id}`),
   update: (id: string, body: Record<string, unknown>) =>
     api.patch<Application>(`/api/v1/apps/${id}`, body),
+  remove: (id: string) => api.del<unknown>(`/api/v1/apps/${id}`),
 };
 
 export const modelsApi = {
@@ -140,6 +145,10 @@ export const modelsApi = {
   create: (body: Record<string, unknown>) => api.post<ModelConfig>("/api/v1/models", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.patch<ModelConfig>(`/api/v1/models/${id}`, body),
+  setCredential: (id: string, apiKey: string) =>
+    api.put<{ configured: boolean }>(`/api/v1/models/${id}/credential`, { action: "set", api_key: apiKey }),
+  clearCredential: (id: string) =>
+    api.put<{ configured: boolean }>(`/api/v1/models/${id}/credential`, { action: "clear" }),
   remove: (id: string) => api.del<unknown>(`/api/v1/models/${id}`),
   probe: (id: string) => api.post<ModelProbeResult>(`/api/v1/models/${id}/probe`),
 };
@@ -208,6 +217,9 @@ export const workflowsApi = {
   list: (appId: string) => api.list<Workflow>(`/api/v1/apps/${appId}/workflows`),
   create: (appId: string, body: Record<string, unknown>) =>
     api.post<Workflow>(`/api/v1/apps/${appId}/workflows`, body),
+  update: (appId: string, id: string, body: Record<string, unknown>) =>
+    api.patch<Workflow>(`/api/v1/apps/${appId}/workflows/${id}`, body),
+  remove: (appId: string, id: string) => api.del<{ deleted: string; archived: boolean }>(`/api/v1/apps/${appId}/workflows/${id}`),
   getGraph: (appId: string, wfId: string) =>
     api.get<GraphDefinition>(`/api/v1/apps/${appId}/workflows/${wfId}/graph`),
   saveGraph: (appId: string, wfId: string, graph: GraphDefinition) =>
@@ -233,11 +245,12 @@ export const knowledgeApi = {
   list: () => api.list<KnowledgeBase>("/api/v1/knowledge-bases?page_size=200"),
   create: (name: string, description?: string) =>
     api.post<KnowledgeBase>("/api/v1/knowledge-bases", { name, description }),
+  update: (id: string, body: Record<string, unknown>) => api.patch<KnowledgeBase>(`/api/v1/knowledge-bases/${id}`, body),
   remove: (id: string) => api.del<unknown>(`/api/v1/knowledge-bases/${id}`),
   documents: (kbId: string) =>
     api.list<KbDocument>(`/api/v1/knowledge-bases/${kbId}/documents`),
-  ingest: (kbId: string, title: string, content: string) =>
-    api.post<KbDocument>(`/api/v1/knowledge-bases/${kbId}/documents`, { title, content }),
+  ingest: (kbId: string, title: string, content: string, source?: string, fileType = "text") =>
+    api.post<KbDocument>(`/api/v1/knowledge-bases/${kbId}/documents`, { title, content, source, file_type: fileType }),
   removeDocument: (kbId: string, docId: string) =>
     api.del<unknown>(`/api/v1/knowledge-bases/${kbId}/documents/${docId}`),
   search: (kbId: string, query: string, topK = 5) =>
@@ -253,6 +266,21 @@ export const chatApi = {
       user_id: userId,
       message,
     }),
+};
+
+export const conversationsApi = {
+  list: (page = 1, userId?: string) => {
+    const query = new URLSearchParams({ page: String(page), page_size: "25" });
+    if (userId) query.set("user_id", userId);
+    return api.get<{ items: Conversation[]; total: number; page: number; page_size: number }>(
+      `/api/v1/conversations?${query.toString()}`,
+    );
+  },
+  messages: (id: string, page = 1) =>
+    api.get<{ items: ConversationMessage[]; total: number; page: number; page_size: number }>(
+      `/api/v1/conversations/${id}/messages?page=${page}&page_size=50`,
+    ),
+  archive: (id: string) => api.del<{ archived: string; status: string }>(`/api/v1/conversations/${id}`),
 };
 
 /* ------------------------------------------------------------------ SSE */

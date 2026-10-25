@@ -1,9 +1,7 @@
 /**
  * 模型目录：租户可选模型的清单与连通性探测。
  *
- * 关键认知：这里的记录**不包含密钥**。真实凭据由部署环境注入，
- * 因此控制台能做的事是「登记有哪些模型」和「探测这个模型名能不能用」，
- * 而不是「填 API Key」。页面上要明确这一点，否则运维会找不到填密钥的地方。
+ * 模型元数据与 write-only BYOK 凭据分开保存；密钥只在输入与提交期间留在内存中。
  */
 
 import { useState } from "react";
@@ -16,12 +14,14 @@ import {
   Button,
   Card,
   CardHeader,
+  useConfirm,
   Empty,
   ErrorNote,
   Field,
   Input,
   Modal,
   PageHeader,
+  Select,
   Skeleton,
   StatusTag,
   Table,
@@ -45,6 +45,7 @@ interface FormState {
   context_len: string;
   price_in: string;
   price_out: string;
+  base_url: string;
 }
 
 const emptyForm: FormState = {
@@ -54,6 +55,7 @@ const emptyForm: FormState = {
   context_len: "128000",
   price_in: "",
   price_out: "",
+  base_url: "",
 };
 
 function numOrNull(value: string): number | null {
@@ -65,8 +67,11 @@ function numOrNull(value: string): number | null {
 
 export function ModelsPage() {
   const toast = useToast();
+  const confirm = useConfirm();
   const models = useAsync(() => modelsApi.list(), []);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<ModelConfig | null>(null);
+  const [credential, setCredential] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, ProbeState>>({});
@@ -78,24 +83,47 @@ export function ModelsPage() {
       return;
     }
     try {
+      let savedId = editing?.id ?? "";
       await run(async () => {
-        await modelsApi.create({
+        const payload = {
           name: form.name.trim(),
           provider: form.provider,
           model_name: form.model_name.trim(),
           context_len: numOrNull(form.context_len),
           price_in: numOrNull(form.price_in),
           price_out: numOrNull(form.price_out),
+          base_url: form.base_url.trim() || null,
           capabilities: {},
-        });
+        };
+        const saved = editing ? await modelsApi.update(editing.id, payload) : await modelsApi.create(payload);
+        savedId = saved.id;
       });
-      toast.push("模型配置已创建");
+      await models.reload();
+      if (credential.trim()) {
+        try {
+          await run(() => modelsApi.setCredential(savedId, credential.trim()));
+        } catch (error) {
+          setCredential("");
+          setFormError(`模型信息已保存，但 API Key 未保存：${error instanceof Error ? error.message : "凭据写入失败"}`);
+          await models.reload();
+          return;
+        }
+      }
+      toast.push(editing ? "模型配置已更新" : "模型配置已创建");
       setOpen(false);
       setForm(emptyForm);
+      setEditing(null);
+      setCredential("");
       await models.reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "创建失败");
     }
+  };
+
+  const closeModal = () => {
+    setOpen(false);
+    setCredential("");
+    setFormError(null);
   };
 
   const probe = async (model: ModelConfig) => {
@@ -111,8 +139,7 @@ export function ModelsPage() {
   };
 
   const remove = async (model: ModelConfig) => {
-    if (!window.confirm(`确认删除模型配置「${model.name}」？引用它的 Agent 会回落到网关默认模型。`))
-      return;
+    if (!await confirm({ title: "删除模型配置", description: `删除「${model.name}」？仍引用它的 Agent 会阻止删除，请先为这些 Agent 重新绑定模型。`, confirmLabel: "删除", danger: true })) return;
     try {
       await modelsApi.remove(model.id);
       toast.push("已删除");
@@ -120,6 +147,19 @@ export function ModelsPage() {
     } catch (err) {
       toast.push(err instanceof Error ? err.message : "删除失败", "error");
     }
+  };
+
+  const openCreate = () => { setEditing(null); setForm(emptyForm); setCredential(""); setFormError(null); setOpen(true); };
+  const openEdit = (model: ModelConfig) => {
+    setEditing(model);
+    setCredential("");
+    setForm({ name: model.name, provider: model.provider, model_name: model.model_name, context_len: String(model.context_len ?? ""), price_in: String(model.price_in ?? ""), price_out: String(model.price_out ?? ""), base_url: model.base_url ?? "" });
+    setFormError(null);
+    setOpen(true);
+  };
+  const clearCredential = async (model: ModelConfig) => {
+    if (!await confirm({ title: "清除模型密钥", description: `清除「${model.name}」的专属 API Key 后，调用将回退到部署级凭据；若部署级凭据未配置，模型将不可用。`, confirmLabel: "清除密钥", danger: true })) return;
+    try { await modelsApi.clearCredential(model.id); toast.push("模型密钥已清除"); await models.reload(); } catch (err) { toast.push(err instanceof Error ? err.message : "清除失败", "error"); }
   };
 
   return (
@@ -131,11 +171,7 @@ export function ModelsPage() {
           <Button
             variant="primary"
             icon={<IconPlus size={14} />}
-            onClick={() => {
-              setForm(emptyForm);
-              setFormError(null);
-              setOpen(true);
-            }}
+            onClick={openCreate}
           >
             新增模型
           </Button>
@@ -174,6 +210,8 @@ export function ModelsPage() {
                 <Th>名称</Th>
                 <Th>模型 ID</Th>
                 <Th>协议</Th>
+                <Th>API 地址</Th>
+                <Th>API Key</Th>
                 <Th align="right">上下文</Th>
                 <Th align="right">输入单价</Th>
                 <Th align="right">输出单价</Th>
@@ -186,7 +224,7 @@ export function ModelsPage() {
                 const probeResult = probes[model.id];
                 return (
                   <Tr key={model.id} index={index} className="transition-colors hover:bg-surface-header">
-                    <Td>{model.name}</Td>
+                <Td><div>{model.name}</div><div className="mt-0.5 text-[11px] text-ink-tertiary">{model.api_key_configured ? "已配置专属密钥" : "使用部署级密钥"}</div></Td>
                     <Td>
                       <span className="font-mono text-caption text-ink-secondary">
                         {model.model_name}
@@ -195,6 +233,8 @@ export function ModelsPage() {
                     <Td>
                       <span className="text-caption text-ink-tertiary">{model.provider}</span>
                     </Td>
+                    <Td><span className="block max-w-56 truncate font-mono text-[11px] text-ink-tertiary" title={model.base_url ?? "部署默认地址"}>{model.base_url || "部署默认地址"}</span></Td>
+                    <Td><StatusTag tone={model.api_key_configured ? "success" : "default"}>{model.api_key_configured ? "专属密钥" : "部署默认"}</StatusTag></Td>
                     <Td align="right">
                       {model.context_len ? model.context_len.toLocaleString() : "—"}
                     </Td>
@@ -237,6 +277,8 @@ export function ModelsPage() {
                         >
                           探测
                         </Button>
+                        <Button size="sm" variant="text" onClick={() => openEdit(model)}>编辑</Button>
+                        {model.api_key_configured && <Button size="sm" variant="text" onClick={() => void clearCredential(model)}>清除密钥</Button>}
                         <Button
                           size="sm"
                           variant="text"
@@ -258,13 +300,13 @@ export function ModelsPage() {
 
       <Modal
         open={open}
-        title="新增模型配置"
-        onClose={() => setOpen(false)}
+        title={editing ? `编辑模型配置 · ${editing.name}` : "新增模型配置"}
+        onClose={closeModal}
         footer={
           <>
-            <Button onClick={() => setOpen(false)}>取消</Button>
+            <Button onClick={closeModal}>取消</Button>
             <Button variant="primary" loading={pending} onClick={() => void create()}>
-              创建
+              {editing ? "保存修改" : "创建"}
             </Button>
           </>
         }
@@ -286,12 +328,13 @@ export function ModelsPage() {
                 placeholder="gpt-4o-mini"
               />
             </Field>
-            <Field label="协议适配器">
-              <Input
-                value={form.provider}
-                onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                placeholder="openai_compat"
-              />
+            <Field label="协议适配器" hint="当前网关支持 OpenAI-compatible API">
+              <Select value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}>
+                <option value="openai_compat">OpenAI-compatible</option>
+              </Select>
+            </Field>
+            <Field label="兼容 API 地址" hint="留空继承部署配置；必须为 HTTPS 公网地址">
+              <Input value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="https://api.example.com/v1" />
             </Field>
             <Field label="上下文长度">
               <Input
@@ -315,6 +358,10 @@ export function ModelsPage() {
               />
             </Field>
           </div>
+          <Field label="供应商 API Key" hint={editing?.api_key_configured ? "已配置。留空保持不变；输入新值会轮换密钥。密钥不会回显。" : "只写入加密存储，不会回显或进入日志。"}>
+            <Input type="password" autoComplete="new-password" value={credential} onChange={(e) => setCredential(e.target.value)} placeholder={editing?.api_key_configured ? "留空保持当前密钥" : "sk-…"} />
+          </Field>
+          <p className="text-caption leading-5 text-ink-tertiary">密钥只会在本次请求中发送，并由服务器使用 CREDENTIAL_ENCRYPTION_KEY 加密保存。若租户工作区尚未配置该主密钥，保存会被拒绝；不会降级成明文存储。</p>
         </div>
       </Modal>
     </div>

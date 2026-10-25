@@ -17,6 +17,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -743,4 +744,49 @@ export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast 必须在 ToastProvider 内使用");
   return ctx;
+}
+
+interface ConfirmOptions {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  danger?: boolean;
+}
+
+const ConfirmContext = createContext<((options: ConfirmOptions) => Promise<boolean>) | null>(null);
+
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [pending, setPending] = useState<ConfirmOptions | null>(null);
+  const resolver = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
+    resolver.current = resolve;
+    setPending(options);
+  }), []);
+
+  const settle = useCallback((confirmed: boolean) => {
+    resolver.current?.(confirmed);
+    resolver.current = null;
+    setPending(null);
+  }, []);
+
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      <Modal
+        open={Boolean(pending)}
+        title={pending?.title ?? "确认操作"}
+        onClose={() => settle(false)}
+        footer={<><Button onClick={() => settle(false)}>取消</Button><Button variant={pending?.danger ? "danger" : "primary"} onClick={() => settle(true)}>{pending?.confirmLabel ?? "确认"}</Button></>}
+      >
+        <p className="text-body leading-6 text-ink-secondary">{pending?.description}</p>
+      </Modal>
+    </ConfirmContext.Provider>
+  );
+}
+
+export function useConfirm() {
+  const confirm = useContext(ConfirmContext);
+  if (!confirm) throw new Error("useConfirm 必须在 ConfirmProvider 内使用");
+  return confirm;
 }

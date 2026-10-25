@@ -10,7 +10,7 @@
  */
 
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { knowledgeApi } from "../lib/api";
 import { useAsync, useSubmit } from "../lib/hooks";
@@ -20,6 +20,7 @@ import {
   Button,
   Card,
   CardHeader,
+  useConfirm,
   Empty,
   ErrorNote,
   Field,
@@ -43,6 +44,7 @@ import type { SearchHit } from "../lib/types";
 export function KnowledgePage() {
   const { app } = useWorkspace();
   const toast = useToast();
+  const confirm = useConfirm();
   const kbs = useAsync(() => knowledgeApi.list(), [app?.id ?? ""], {
     enabled: Boolean(app?.id),
   });
@@ -50,8 +52,12 @@ export function KnowledgePage() {
   const [activeId, setActiveId] = useState<string>("");
   const [docOpen, setDocOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
+  const [editingKb, setEditingKb] = useState<string | null>(null);
   const [docTitle, setDocTitle] = useState("");
   const [docContent, setDocContent] = useState("");
+  const [docSource, setDocSource] = useState("");
+  const [docFileType, setDocFileType] = useState("text");
+  const uploadRef = useRef<HTMLInputElement>(null);
   const [kbName, setKbName] = useState("");
   const [kbDesc, setKbDesc] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -84,9 +90,12 @@ export function KnowledgePage() {
       return;
     }
     try {
-      const created = await knowledgeApi.create(kbName.trim(), kbDesc.trim() || undefined);
-      toast.push("知识库已创建");
+      const created = editingKb
+        ? await knowledgeApi.update(editingKb, { name: kbName.trim(), description: kbDesc.trim() || null })
+        : await knowledgeApi.create(kbName.trim(), kbDesc.trim() || undefined);
+      toast.push(editingKb ? "知识库设置已更新" : "知识库已创建");
       setKbOpen(false);
+      setEditingKb(null);
       setKbName("");
       setKbDesc("");
       await kbs.reload();
@@ -104,15 +113,58 @@ export function KnowledgePage() {
     }
     try {
       await run(async () => {
-        await knowledgeApi.ingest(activeId, docTitle.trim(), docContent.trim());
+        await knowledgeApi.ingest(activeId, docTitle.trim(), docContent.trim(), docSource || undefined, docFileType);
       });
       toast.push("文档已入库并完成向量化");
       setDocOpen(false);
       setDocTitle("");
       setDocContent("");
+      setDocSource("");
+      setDocFileType("text");
       await docs.reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "入库失败");
+    }
+  };
+
+  const openCreateKb = () => {
+    setEditingKb(null);
+    setKbName("");
+    setKbDesc("");
+    setFormError(null);
+    setKbOpen(true);
+  };
+
+  const openEditKb = () => {
+    if (!activeKb) return;
+    setEditingKb(activeKb.id);
+    setKbName(activeKb.name);
+    setKbDesc(activeKb.description ?? "");
+    setFormError(null);
+    setKbOpen(true);
+  };
+
+  const loadTextFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext !== "txt" && ext !== "md") {
+      setFormError("当前只支持 .txt 和 .md 文件；PDF/Word 解析后端尚未接入");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setFormError("文本文档不能超过 2 MiB");
+      return;
+    }
+    try {
+      setDocTitle(file.name.replace(/\.(txt|md)$/i, ""));
+      setDocContent(await file.text());
+      setDocSource(file.name);
+      setDocFileType(ext);
+      setFormError(null);
+    } catch {
+      setFormError("无法读取所选文件");
     }
   };
 
@@ -131,13 +183,28 @@ export function KnowledgePage() {
   };
 
   const removeDoc = async (docId: string) => {
-    if (!window.confirm("确认删除该文档？其分块与向量会一并移除。")) return;
+    if (!await confirm({ title: "删除文档", description: "删除文档后，其分块与向量会一并移除，该内容不再参与检索。", confirmLabel: "删除文档", danger: true })) return;
     try {
       await knowledgeApi.removeDocument(activeId, docId);
       toast.push("已删除");
       await docs.reload();
     } catch (err) {
       toast.push(err instanceof Error ? err.message : "删除失败", "error");
+    }
+  };
+
+  const removeKb = async () => {
+    if (!activeKb) return;
+    const count = docs.data?.length ?? 0;
+    if (!await confirm({ title: "删除知识库", description: `删除「${activeKb.name}」及其 ${count} 篇文档？关联 Agent 将解除该知识库授权，文档分块与向量会被移除。`, confirmLabel: "删除知识库", danger: true })) return;
+    try {
+      await knowledgeApi.remove(activeKb.id);
+      toast.push("知识库已删除，关联文档与向量已清理");
+      setActiveId("");
+      setHits(null);
+      await kbs.reload();
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : "删除知识库失败", "error");
     }
   };
 
@@ -148,7 +215,7 @@ export function KnowledgePage() {
         description="文档入库、切分与检索调试：先确认召回质量，再谈 RAG 效果"
         actions={
           <div className="flex gap-2">
-            <Button onClick={() => setKbOpen(true)} icon={<IconPlus size={14} />}>
+            <Button onClick={openCreateKb} icon={<IconPlus size={14} />}>
               新建知识库
             </Button>
             <Button
@@ -231,7 +298,11 @@ export function KnowledgePage() {
               description={activeKb?.description ?? "选择左侧知识库查看文档"}
               extra={
                 activeKb && (
-                  <StatusTag tone="info">{docs.data?.length ?? 0} 篇文档</StatusTag>
+                  <div className="flex items-center gap-2">
+                    <StatusTag tone="info">{docs.data?.length ?? 0} 篇文档</StatusTag>
+                    <Button size="sm" variant="text" onClick={openEditKb}>编辑</Button>
+                    <Button size="sm" variant="text" disabled={docs.loading} className="text-state-error-fg hover:bg-state-error-bg" icon={<IconTrash size={13} />} onClick={() => void removeKb()}>删除知识库</Button>
+                  </div>
                 )
               }
             />
@@ -391,6 +462,9 @@ export function KnowledgePage() {
       >
         <div className="space-y-4">
           {formError && <ErrorNote message={formError} />}
+          <input ref={uploadRef} type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={(event) => void loadTextFile(event)} />
+          <div className="flex items-center justify-between gap-3 rounded-control border border-line-split bg-surface-fill px-3 py-2.5"><div><div className="text-body font-medium text-ink-primary">从文本文件导入</div><div className="mt-0.5 text-caption text-ink-tertiary">支持 .txt / .md，最大 2 MiB；PDF/Word 解析尚未接入</div></div><Button size="sm" onClick={() => uploadRef.current?.click()}>选择文件</Button></div>
+          {docSource && <div className="text-caption text-ink-tertiary">来源：{docSource}</div>}
           <Field label="标题" required>
             <Input
               value={docTitle}
@@ -411,13 +485,13 @@ export function KnowledgePage() {
 
       <Modal
         open={kbOpen}
-        title="新建知识库"
-        onClose={() => setKbOpen(false)}
+        title={editingKb ? "编辑知识库" : "新建知识库"}
+        onClose={() => { setKbOpen(false); setEditingKb(null); }}
         footer={
           <>
-            <Button onClick={() => setKbOpen(false)}>取消</Button>
+            <Button onClick={() => { setKbOpen(false); setEditingKb(null); }}>取消</Button>
             <Button variant="primary" onClick={() => void createKb()}>
-              创建
+              {editingKb ? "保存" : "创建"}
             </Button>
           </>
         }

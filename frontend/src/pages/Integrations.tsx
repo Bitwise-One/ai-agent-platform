@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   CardHeader,
+  useConfirm,
   Empty,
   ErrorNote,
   Field,
@@ -87,6 +88,7 @@ export function IntegrationsPage() {
   const { app, tenant } = useWorkspace();
   const appId = app?.id ?? "";
   const toast = useToast();
+  const confirm = useConfirm();
   const mcpServers = useAsync(() => integrationsApi.listMcpServers(), [tenant?.id], { enabled: Boolean(tenant?.id) });
   const skills = useAsync(() => integrationsApi.listSkills(), [tenant?.id], { enabled: Boolean(tenant?.id) });
   const agents = useAsync(() => agentsApi.list(appId), [appId], { enabled: Boolean(appId) });
@@ -227,7 +229,7 @@ export function IntegrationsPage() {
   };
 
   const deleteMcp = async (server: McpServer) => {
-    if (!window.confirm(`删除 MCP 服务「${server.name}」？现有 Agent 绑定将失效。`)) return;
+    if (!await confirm({ title: "删除 MCP 服务", description: `删除「${server.name}」？已绑定的工具调用会失败，MCP 调用日志将保留供审计。`, confirmLabel: "删除服务", danger: true })) return;
     try {
       await integrationsApi.removeMcpServer(server.id);
       toast.push("MCP 服务已删除");
@@ -320,7 +322,7 @@ export function IntegrationsPage() {
   };
 
   const deleteSkill = async (skill: Skill) => {
-    if (!window.confirm(`删除 Skill「${skill.name}」？已绑定的 Agent 将解除绑定。`)) return;
+    if (!await confirm({ title: "删除 Skill", description: `删除「${skill.name}」？已绑定的 Agent 将无法再触发该能力。`, confirmLabel: "删除 Skill", danger: true })) return;
     try {
       await integrationsApi.removeSkill(skill.id);
       toast.push("Skill 已删除");

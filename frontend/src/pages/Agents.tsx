@@ -21,6 +21,7 @@ import {
   Button,
   Card,
   CardHeader,
+  useConfirm,
   Empty,
   ErrorNote,
   Field,
@@ -86,6 +87,7 @@ export function AgentsPage() {
   const { app, tenant } = useWorkspace();
   const appId = app?.id ?? "";
   const toast = useToast();
+  const confirm = useConfirm();
 
   const agents = useAsync(() => agentsApi.list(appId), [appId], { enabled: Boolean(appId) });
   const models = useAsync(() => modelsApi.list(), [], { enabled: Boolean(appId) });
@@ -246,7 +248,11 @@ export function AgentsPage() {
   };
 
   const remove = async (agent: Agent) => {
-    if (!window.confirm(`确认删除「${agent.name}」？该操作会同时解绑其知识库。`)) return;
+    if (agent.is_default) {
+      toast.push("默认兜底 Agent 不能删除，请先将其他 Agent 设为默认", "info");
+      return;
+    }
+    if (!await confirm({ title: "删除 Agent", description: `删除「${agent.name}」？系统提示词、知识库和工具绑定将停用；相关历史 trace 保留。`, confirmLabel: "删除 Agent", danger: true })) return;
     try {
       await agentsApi.remove(appId, agent.id);
       toast.push("已删除");
@@ -407,6 +413,8 @@ export function AgentsPage() {
                       <Button
                         size="sm"
                         variant="text"
+                        disabled={agent.is_default}
+                        title={agent.is_default ? "先将其他 Agent 设为默认" : "删除 Agent"}
                         className="text-state-error-fg hover:bg-state-error-bg"
                         onClick={() => void remove(agent)}
                         aria-label={`删除 ${agent.name}`}

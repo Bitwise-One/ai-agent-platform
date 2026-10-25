@@ -155,6 +155,12 @@ export const IconHistory = (p: IconProps) => (
   </Base>
 );
 
+export const IconArchive = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 4h16l1 4H3l1-4ZM4 8v12h16V8M9 12h6" />
+  </Base>
+);
+
 export const IconArrowRight = (p: IconProps) => (
   <Base {...p}>
     <path d="M5 12h14M13 6l6 6-6 6" />

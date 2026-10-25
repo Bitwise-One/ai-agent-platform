@@ -33,7 +33,11 @@ pnpm dev            # http://localhost:5173
 | `/agents` | Agent | 提示词、模型、温度、路由关键词、知识库绑定、默认兜底 |
 | `/integrations` | 工具与 Skills | MCP 服务管理、工具发现与人工确认试调用、脱敏调用日志、Skill 元信息与 WASM 沙箱测试；Agent 编辑中授权绑定 |
 | `/knowledge` | 知识库 | 建库、入库文档、切分预览、检索调试验证召回 |
-| `/models` | 模型目录 | 模型与单价、连通性探测 |
+| `/models` | 模型目录 | 模型增删改、HTTPS 端点、BYOK 密钥轮换/清除、连通性探测 |
+| `/workspace` | 工作区管理 | 租户设置/软删除、应用增删改、默认工作流 |
+| `/conversations` | 会话记录 | 会话分页、用户筛选、消息分页、终态归档 |
+| `/workspace` | 工作区管理 | 租户设置、应用 CRUD、默认工作流绑定 |
+| `/conversations` | 会话记录 | 会话列表、消息详情、终态会话归档 |
 | `/playground` | 对话调试台 | SSE 流式对话，右侧同步展示路由决策 / RAG 命中 / 隐藏返回 / token |
 
 ## 目录

@@ -15,6 +15,7 @@ import {
   Button,
   Card,
   CardHeader,
+  useConfirm,
   Empty,
   ErrorNote,
   Field,
@@ -31,15 +32,17 @@ import {
   taskTone,
   useToast,
 } from "../components/ui";
-import { IconGraph, IconPlus } from "../components/icons";
+import { IconGraph, IconPlus, IconTrash } from "../components/icons";
 
 export function WorkflowsPage() {
   const { app } = useWorkspace();
   const appId = app?.id ?? "";
   const toast = useToast();
+  const confirm = useConfirm();
   const flows = useAsync(() => workflowsApi.list(appId), [appId], { enabled: Boolean(appId) });
 
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -50,17 +53,51 @@ export function WorkflowsPage() {
       return;
     }
     try {
-      await workflowsApi.create(appId, {
+      const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
-      });
-      toast.push("工作流已创建");
+      };
+      if (editing) await workflowsApi.update(appId, editing.id, payload);
+      else await workflowsApi.create(appId, payload);
+      toast.push(editing ? "工作流设置已更新" : "工作流已创建");
       setOpen(false);
+      setEditing(null);
       setName("");
       setDescription("");
       await flows.reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "创建失败");
+    }
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setName("");
+    setDescription("");
+    setFormError(null);
+    setOpen(true);
+  };
+
+  const openEdit = (flow: { id: string; name: string; description: string | null }) => {
+    setEditing({ id: flow.id, name: flow.name });
+    setName(flow.name);
+    setDescription(flow.description ?? "");
+    setFormError(null);
+    setOpen(true);
+  };
+
+  const remove = async (id: string, name: string) => {
+    if (app?.default_workflow_id === id) {
+      toast.push("先将应用切换到其他默认工作流，再删除当前流程", "info");
+      return;
+    }
+    if (!await confirm({ title: "删除工作流", description: `删除「${name}」？该流程将从列表移除，历史版本保留供审计；删除后不能恢复或继续发布。`, confirmLabel: "删除工作流", danger: true })) return;
+    try {
+      await workflowsApi.remove(appId, id);
+      toast.push("工作流已删除");
+      await flows.reload();
+    } catch (err) {
+      toast.push(err instanceof Error ? err.message : "删除工作流失败", "error");
     }
   };
 
@@ -73,10 +110,7 @@ export function WorkflowsPage() {
           <Button
             variant="primary"
             icon={<IconPlus size={14} />}
-            onClick={() => {
-              setFormError(null);
-              setOpen(true);
-            }}
+            onClick={openCreate}
           >
             新建工作流
           </Button>
@@ -148,12 +182,11 @@ export function WorkflowsPage() {
                       )}
                     </Td>
                     <Td align="right">
-                      <Link
-                        to={`/workflows/${flow.id}`}
-                        className="text-caption text-brand-600 hover:underline"
-                      >
-                        打开画布
-                      </Link>
+                      <div className="flex justify-end gap-2">
+                        <Link to={`/workflows/${flow.id}`} className="text-caption text-brand-600 hover:underline">打开画布</Link>
+                        <Button size="sm" variant="text" onClick={() => openEdit(flow)}>编辑</Button>
+                        <Button size="sm" variant="text" disabled={bound} title={bound ? "先切换应用默认工作流" : "删除工作流"} className="text-state-error-fg hover:bg-state-error-bg" aria-label={`删除 ${flow.name}`} onClick={() => void remove(flow.id, flow.name)}><IconTrash size={13} /></Button>
+                      </div>
                     </Td>
                   </Tr>
                 );
@@ -165,13 +198,13 @@ export function WorkflowsPage() {
 
       <Modal
         open={open}
-        title="新建工作流"
+        title={editing ? `编辑工作流 · ${editing.name}` : "新建工作流"}
         onClose={() => setOpen(false)}
         footer={
           <>
             <Button onClick={() => setOpen(false)}>取消</Button>
             <Button variant="primary" onClick={() => void create()}>
-              创建
+              {editing ? "保存" : "创建"}
             </Button>
           </>
         }

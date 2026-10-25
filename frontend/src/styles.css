@@ -924,9 +924,9 @@
   .console-shell table thead th { color:#acc0b8; background:rgba(226,248,237,.055); border-color:rgba(207,235,225,.11); }
   .console-shell table tbody tr:hover { background:rgba(102,205,164,.065); }
   .console-shell table tbody td { color:#d7e4de; border-color:rgba(207,235,225,.09); }
-  .console-shell [role="dialog"] { color:#eaf5f1; border-color:rgba(215,246,233,.16); background:rgba(17,31,30,.94); box-shadow:0 30px 100px rgba(0,0,0,.56),inset 0 1px rgba(255,255,255,.08); -webkit-backdrop-filter:blur(30px) saturate(140%); backdrop-filter:blur(30px) saturate(140%); }
-  .console-shell [role="dialog"] h2 { color:#edf6f2; }
-  .console-shell [role="dialog"] > div { border-color:rgba(207,235,225,.1); }
+  [role="dialog"] { color:#eaf5f1; border-color:rgba(215,246,233,.16); background:rgba(17,31,30,.96); box-shadow:0 30px 100px rgba(0,0,0,.56),inset 0 1px rgba(255,255,255,.08); -webkit-backdrop-filter:blur(30px) saturate(140%); backdrop-filter:blur(30px) saturate(140%); }
+  [role="dialog"] h2 { color:#edf6f2; }
+  [role="dialog"] > div { border-color:rgba(207,235,225,.1); }
   .console-shell .rounded-control.bg-surface-fill,
   .console-shell .rounded-card.bg-surface,
   .console-shell .border-line-split.rounded-control { color:#d9e7e1; border-color:rgba(207,235,225,.12); background-color:rgba(217,244,232,.065); }
