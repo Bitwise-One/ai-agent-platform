@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 # 统一的消息结构：{"role": "system|user|assistant|tool", "content": "..."}
-Message = dict[str, str]
+Message = dict[str, Any]
 
 
 @dataclass
@@ -26,6 +26,7 @@ class LLMResponse:
     tokens_out: int = 0
     latency_ms: int = 0
     finish_reason: str = "stop"
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     # 原始响应（调试用，禁止入库敏感字段）
     raw: dict = field(default_factory=dict)
 
@@ -55,6 +56,7 @@ class LLMProvider(Protocol):
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
         **kwargs,
     ) -> LLMResponse: ...
 

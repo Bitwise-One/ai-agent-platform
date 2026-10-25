@@ -62,3 +62,7 @@ class ChatResponse(BaseModel):
     token_usage: int = 0
     # RAG 引用来源，供前端展示「答案依据」（FR-K-09）
     rag_sources: list[dict] = Field(default_factory=list)
+
+
+class HiddenActionConsumeRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=4096)

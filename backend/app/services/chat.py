@@ -10,16 +10,21 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import RequestContext
-from app.core.errors import NotFound
+from app.core.errors import AppError, NotFound
+from app.core.security import TokenError, issue_hidden_action_token, verify_hidden_action_token
 from app.graph.builder import AgentRunner, EventEmitter, RagRetriever
 from app.graph.runner import RunResult, run_workflow
 from app.graph.runners.llm import llm_agent_runner
@@ -27,18 +32,23 @@ from app.graph.spec import WorkflowSpec
 from app.knowledge import service as kb_service
 from app.models import (
     Agent,
+    AgentMcpTool,
     AgentSkill,
     Application,
     Conversation,
     HiddenResponse,
+    McpToolRecord,
     Skill,
     TaskRun,
     TaskStatus,
     Workflow,
 )
+from app.models.base import utcnow
 from app.schemas.conversation import ChatRequest, ChatResponse, ConversationCreate
+from app.schemas.integration import McpToolCallRequest
 from app.services import agents as agent_service
 from app.services import conversations as conv_service
+from app.services import integrations as integration_service
 from app.services import models as model_service
 from app.services.tenants import ensure_tenant_matches
 
@@ -55,6 +65,8 @@ class PreparedChat:
     retriever: RagRetriever | None
     runner: AgentRunner
     skills_by_agent: dict[str, list[dict]]
+    mcp_tools_by_agent: dict[str, list[dict]]
+    mcp_tool_executor: Any
 
 
 # ---------------------------------------------------------------- 准备阶段
@@ -162,6 +174,38 @@ async def prepare_chat(
         skills_by_agent.setdefault(str(agent_id), []).append(
             {"name": name, "instructions": instructions, "trigger": trigger or {}}
         )
+    mcp_rows = await session.execute(
+        select(AgentMcpTool.agent_id, McpToolRecord.id, McpToolRecord.name, McpToolRecord.description, McpToolRecord.input_schema)
+        .join(McpToolRecord, McpToolRecord.id == AgentMcpTool.tool_id)
+        .join(Agent, Agent.id == AgentMcpTool.agent_id)
+        .where(
+            Agent.tenant_id == ctx.tenant_id,
+            Agent.application_id == app.id,
+            Agent.deleted_at.is_(None),
+            McpToolRecord.tenant_id == ctx.tenant_id,
+            McpToolRecord.enabled.is_(True),
+        )
+    )
+    mcp_tools_by_agent: dict[str, list[dict]] = {}
+    for agent_id, tool_id, name, description, input_schema in mcp_rows:
+        mcp_tools_by_agent.setdefault(str(agent_id), []).append(
+            {"id": str(tool_id), "name": name, "description": description or "", "input_schema": input_schema or {}}
+        )
+
+    async def execute_mcp_tool(agent_id: str, tool_id: str, params: dict) -> dict:
+        try:
+            aid = uuid.UUID(agent_id)
+            tid = uuid.UUID(tool_id)
+        except (ValueError, TypeError) as exc:
+            raise NotFound("MCP 工具不存在或未绑定") from exc
+        return await integration_service.call_agent_mcp_tool(
+            session, ctx.tenant_id, app.id, aid, tid,
+            McpToolCallRequest(params=params), ctx.request_id,
+        )
+
+    async def execute_bound_mcp_tool(agent_id: str, tool_id: str, params: dict) -> dict:
+        return await execute_mcp_tool(agent_id, tool_id, params)
+
     return PreparedChat(
         conversation=conversation,
         run=run,
@@ -169,6 +213,8 @@ async def prepare_chat(
         retriever=_make_retriever(session, ctx.tenant_id),
         runner=runner or llm_agent_runner,
         skills_by_agent=skills_by_agent,
+        mcp_tools_by_agent=mcp_tools_by_agent,
+        mcp_tool_executor=execute_bound_mcp_tool,
     )
 
 
@@ -194,6 +240,8 @@ async def _execute(
             retriever=prepared.retriever,
             emitter=emitter,
             skills_by_agent=prepared.skills_by_agent,
+            mcp_tools_by_agent=prepared.mcp_tools_by_agent,
+            mcp_tool_executor=prepared.mcp_tool_executor,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("工作流调度异常")
@@ -224,17 +272,45 @@ async def _finalize(
             session, ctx.tenant_id, prepared.conversation.id, "assistant", result.reply
         )
         for item in result.hidden:
+            if item.get("action") in {"call_function", "download_file"}:
+                logger.warning("high-risk hidden action rejected until an operation registry is configured: %s", item.get("action"))
+                continue
             record = HiddenResponse(
                 tenant_id=ctx.tenant_id,
                 message_id=msg.id,
                 run_id=prepared.run.id,
                 action=str(item.get("action", "custom")),
                 payload=item.get("payload") or {},
+                created_at=utcnow(),
             )
             session.add(record)
-            hidden_out.append({"action": record.action, "payload": record.payload})
-        await session.flush()
-
+            await session.flush()
+            payload_hash = hashlib.sha256(
+                json.dumps(record.payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            token = issue_hidden_action_token(
+                response_id=str(record.id),
+                tenant_id=str(ctx.tenant_id),
+                application_id=str(prepared.conversation.application_id),
+                conversation_id=str(prepared.conversation.id),
+                run_id=str(prepared.run.id),
+                action=record.action,
+                payload_hash=payload_hash,
+            )
+            hidden_out.append({
+                "type": "hidden",
+                "channel": "system",
+                "event": "ui_action",
+                "action": record.action,
+                "payload": record.payload,
+                "meta": {
+                    "request_id": ctx.request_id,
+                    "agent_id": result.route.get("selected"),
+                    "timestamp": int(record.created_at.timestamp()),
+                    "capability": {"action": record.action, "scope": "conversation"},
+                    "action_token": token,
+                },
+            })
     return ChatResponse(
         conversation_id=prepared.conversation.id,
         run_id=prepared.run.id,
@@ -244,6 +320,57 @@ async def _finalize(
         token_usage=result.token_usage,
         rag_sources=result.rag_sources,
     )
+
+
+async def consume_hidden_action(
+    session: AsyncSession,
+    ctx: RequestContext,
+    app_id: uuid.UUID,
+    token: str,
+) -> dict:
+    try:
+        claims = verify_hidden_action_token(token)
+        response_id = uuid.UUID(claims["rid"])
+        conversation_id = uuid.UUID(claims["cid"])
+        run_id = uuid.UUID(claims["run"])
+    except (TokenError, KeyError, ValueError) as exc:
+        raise AppError(10003, "隐藏动作 token 无效或已过期", 401) from exc
+    if claims.get("tid") != str(ctx.tenant_id) or claims.get("aid") != str(app_id):
+        raise NotFound("隐藏动作不存在")
+    from sqlalchemy import update
+
+    from app.models import Conversation
+
+    row = await session.scalar(
+        select(HiddenResponse)
+        .join(Conversation, Conversation.id == conversation_id)
+        .where(
+            HiddenResponse.id == response_id,
+            HiddenResponse.tenant_id == ctx.tenant_id,
+            HiddenResponse.run_id == run_id,
+            HiddenResponse.action == claims.get("act"),
+            Conversation.application_id == app_id,
+            Conversation.tenant_id == ctx.tenant_id,
+            Conversation.user_id == ctx.user_id,
+            HiddenResponse.consumed_at.is_(None),
+        )
+        .with_for_update()
+    )
+    if row is None:
+        raise NotFound("隐藏动作不存在、已消费或不属于当前用户")
+    digest = hashlib.sha256(
+        json.dumps(row.payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if not hmac.compare_digest(digest, claims.get("ph", "")):
+        raise AppError(10003, "隐藏动作内容校验失败", 401)
+    result = await session.execute(
+        update(HiddenResponse)
+        .where(HiddenResponse.id == response_id, HiddenResponse.consumed_at.is_(None))
+        .values(consumed_at=utcnow())
+    )
+    if result.rowcount != 1:
+        raise NotFound("隐藏动作不存在或已消费")
+    return {"action": row.action, "payload": row.payload, "consumed": True}
 
 
 # ---------------------------------------------------------------- 非流式
@@ -313,7 +440,7 @@ async def stream_chat(
 
     # 流式路径下 token 已经实时推过，这里只补发隐藏返回与终态
     for item in response.hidden_responses:
-        yield {"type": "hidden", **item}
+        yield {**item, "type": "hidden"}
 
     yield {
         "type": "done",

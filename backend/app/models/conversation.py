@@ -105,6 +105,7 @@ class HiddenResponse(Base, CreatedAtMixin):
     run_id: Mapped[uuid.UUID] = mapped_column(nullable=False, index=True, comment="所属任务运行 ID")
     action: Mapped[str] = mapped_column(String(64), nullable=False, comment="动作类型（open_form/navigate/trigger_ticket 等）")
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict, comment="结构化动作参数")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), comment="一次性 action token 消费时间")
 
 
 class TaskRun(Base):

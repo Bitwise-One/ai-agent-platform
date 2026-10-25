@@ -68,6 +68,8 @@ class AgentState(TypedDict, total=False):
 
     # Bound instruction Skills loaded within tenant + application scope.
     skills_by_agent: dict[str, list[dict[str, Any]]]
+    mcp_tools_by_agent: dict[str, list[dict[str, Any]]]
+    mcp_tool_executor: Any
 
     # ---- 计量 ----
     token_usage: int
@@ -82,6 +84,8 @@ def initial_state(
     run_id: str,
     user_input: str,
     skills_by_agent: dict[str, list[dict[str, Any]]] | None = None,
+    mcp_tools_by_agent: dict[str, list[dict[str, Any]]] | None = None,
+    mcp_tool_executor: Any = None,
 ) -> AgentState:
     return AgentState(
         tenant_id=tenant_id,
@@ -91,6 +95,8 @@ def initial_state(
         run_id=run_id,
         user_input=user_input,
         skills_by_agent=skills_by_agent or {},
+        mcp_tools_by_agent=mcp_tools_by_agent or {},
+        mcp_tool_executor=mcp_tool_executor,
         messages=[{"role": "user", "content": user_input}],
         iteration_count=1,
         token_usage=0,

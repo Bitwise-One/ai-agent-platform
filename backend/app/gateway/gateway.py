@@ -87,6 +87,7 @@ class ModelGateway:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        tools: list[dict] | None = None,
     ) -> LLMResponse:
         """非流式补全，带重试与降级。"""
         temp = self._settings.llm_temperature if temperature is None else temperature
@@ -104,7 +105,12 @@ class ModelGateway:
         for candidate in candidates:
             try:
                 return await self._complete_with_retry(
-                    self._llm, messages, model=candidate, temperature=temp, max_tokens=tokens
+                    self._llm,
+                    messages,
+                    model=candidate,
+                    temperature=temp,
+                    max_tokens=tokens,
+                    tools=tools,
                 )
             except ProviderError as exc:
                 last_error = exc
@@ -126,13 +132,18 @@ class ModelGateway:
         model: str | None,
         temperature: float,
         max_tokens: int,
+        tools: list[dict] | None = None,
     ) -> LLMResponse:
         """指数退避重试：仅对可重试错误生效。"""
         attempt = 0
         while True:
             try:
                 return await provider.complete(
-                    messages, model=model, temperature=temperature, max_tokens=max_tokens
+                    messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
                 )
             except ProviderError as exc:
                 if not exc.retriable or attempt >= _MAX_RETRIES:
