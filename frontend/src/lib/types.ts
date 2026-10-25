@@ -150,6 +150,14 @@ export interface RagSource {
 export interface HiddenResponse {
   action: string;
   payload: Record<string, unknown>;
+  type?: "hidden";
+  channel?: string;
+  event?: string;
+  meta?: {
+    action_token?: string;
+    capability?: { action: string; scope: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface ChatResult {
@@ -172,7 +180,7 @@ export interface RouteInfo {
 
 /** SSE 事件的联合类型：与后端 `stream_chat` 产出的 type 字段一一对应 */
 export type StreamEvent =
-  | { type: "meta"; run_id: string; conversation_id: string; application_id: string }
+  | { id?: number; type: "meta"; run_id: string; conversation_id: string; application_id: string }
   | { type: "status"; status: string; detail?: string }
   | {
       type: "route";
@@ -182,7 +190,7 @@ export type StreamEvent =
       reason: string;
     }
   | { type: "rag"; hits: number }
-  | { type: "token"; text: string }
+  | { id?: number; run_id?: string; type: "token"; text: string }
   | ({ type: "hidden" } & HiddenResponse)
   | {
       type: "done";

@@ -224,45 +224,71 @@ export async function streamChat(
   handlers: {
     onEvent: (event: StreamEvent) => void;
     onError?: (error: Error) => void;
+    onHiddenAction?: (event: Extract<StreamEvent, { type: "hidden" }>) => void;
   },
   signal?: AbortSignal,
+  options: { idempotencyKey?: string; lastEventId?: number } = {},
 ): Promise<void> {
+  const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
+  let lastEventId = options.lastEventId ?? 0;
+  const maxReconnects = 4;
   try {
-    const res = await fetch(`${BASE}/api/v1/apps/${appId}/chat/stream`, {
-      method: "POST",
-      headers: baseHeaders({ Accept: "text/event-stream" }),
-      body: JSON.stringify(body),
-      signal,
-    });
+    for (let attempt = 0; attempt <= maxReconnects; attempt += 1) {
+      if (signal?.aborted) return;
+      const res = await fetch(`${BASE}/api/v1/apps/${appId}/chat/stream`, {
+        method: "POST",
+        headers: baseHeaders({
+          Accept: "text/event-stream",
+          "Idempotency-Key": idempotencyKey,
+          ...(lastEventId ? { "Last-Event-ID": String(lastEventId) } : {}),
+        }),
+        body: JSON.stringify(body),
+        signal,
+      });
+      if (!res.ok || !res.body) {
+        throw new ApiError(`流式请求失败（HTTP ${res.status}）`, res.status, res.status);
+      }
 
-    if (!res.ok || !res.body) {
-      throw new ApiError(`流式请求失败（HTTP ${res.status}）`, res.status, res.status);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // 按空行切帧；最后一段可能不完整，留在 buffer 里等下一片
-      const frames = buffer.split("\n\n");
-      buffer = frames.pop() ?? "";
-      for (const frame of frames) {
-        const dataLine = frame
-          .split("\n")
-          .find((line) => line.startsWith("data:"));
-        if (!dataLine) continue;
-        try {
-          handlers.onEvent(JSON.parse(dataLine.slice(5).trim()) as StreamEvent);
-        } catch {
-          // 单帧解析失败不应中断整条流
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const lines = frame.split(/\r?\n/);
+          const idLine = lines.find((line) => line.startsWith("id:"));
+          const dataLine = lines.find((line) => line.startsWith("data:"));
+          if (!dataLine) continue;
+          try {
+            const event = JSON.parse(dataLine.slice(5).trim()) as StreamEvent;
+            const frameId = Number(idLine?.slice(3).trim() ?? ("id" in event ? event.id : 0));
+            if (Number.isFinite(frameId) && frameId > 0 && frameId <= lastEventId) continue;
+            if (Number.isFinite(frameId) && frameId > 0) lastEventId = frameId;
+            if (event.type === "hidden") handlers.onHiddenAction?.(event);
+            handlers.onEvent(event);
+            if (event.type === "done") completed = true;
+          } catch {
+            // Ignore malformed frames and keep the stream alive.
+          }
         }
       }
+      if (completed) return;
+      if (attempt < maxReconnects) {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = window.setTimeout(resolve, Math.min(250 * 2 ** attempt, 2000));
+          signal?.addEventListener("abort", () => {
+            window.clearTimeout(timeout);
+            reject(new DOMException("Aborted", "AbortError"));
+          }, { once: true });
+        });
+      }
     }
+    throw new Error("事件流在重连次数耗尽后仍未收到 done 事件");
   } catch (error) {
     if ((error as Error).name === "AbortError") return;
     handlers.onError?.(error as Error);

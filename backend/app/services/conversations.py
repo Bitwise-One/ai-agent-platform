@@ -115,12 +115,19 @@ async def append_message(
 async def create_run(
     session: AsyncSession,
     tenant_id: uuid.UUID,
+    application_id: uuid.UUID,
     conversation_id: uuid.UUID,
     payload: dict,
+    *,
+    idempotency_key: str | None = None,
+    request_hash: str | None = None,
 ) -> TaskRun:
     run = TaskRun(
         tenant_id=tenant_id,
+        application_id=application_id,
         conversation_id=conversation_id,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
         status=TaskStatus.CREATED,
         input=payload,
     )
