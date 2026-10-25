@@ -14,6 +14,7 @@ from app.schemas.knowledge import (
     DocumentOut,
     KnowledgeBaseCreate,
     KnowledgeBaseOut,
+    KnowledgeBaseUpdate,
     SearchRequest,
     SearchResponse,
 )
@@ -62,6 +63,18 @@ async def get_kb(
     db: AsyncSession = DbDep,
 ) -> ApiResponse[KnowledgeBaseOut]:
     kb = await kb_service.get_kb(db, ctx.tenant_id, kb_id)
+    return ApiResponse(data=KnowledgeBaseOut.model_validate(kb), request_id=get_request_id(request))
+
+
+@router.patch("/{kb_id}", response_model=ApiResponse[KnowledgeBaseOut])
+async def update_kb(
+    kb_id: uuid.UUID,
+    payload: KnowledgeBaseUpdate,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[KnowledgeBaseOut]:
+    kb = await kb_service.update_kb(db, ctx.tenant_id, kb_id, payload)
     return ApiResponse(data=KnowledgeBaseOut.model_validate(kb), request_id=get_request_id(request))
 
 

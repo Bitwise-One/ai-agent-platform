@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -18,8 +18,9 @@ from app.core.errors import NotFound
 from app.gateway import get_gateway
 from app.knowledge.chunker import estimate_tokens, split_text
 from app.knowledge.retriever import rank
-from app.models import Chunk, Document, KnowledgeBase
+from app.models import AgentKb, Chunk, Document, KnowledgeBase
 from app.models.base import utcnow
+from app.schemas.knowledge import KnowledgeBaseUpdate
 
 # 单次检索最多加载的候选块数量，防止内存被打爆
 CANDIDATE_LIMIT = 2000
@@ -72,6 +73,16 @@ async def get_kb(
     return kb
 
 
+async def update_kb(
+    session: AsyncSession, tenant_id: uuid.UUID, kb_id: uuid.UUID, payload: KnowledgeBaseUpdate
+) -> KnowledgeBase:
+    kb = await get_kb(session, tenant_id, kb_id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(kb, key, value)
+    await session.flush()
+    return kb
+
+
 async def delete_kb(session: AsyncSession, tenant_id: uuid.UUID, kb_id: uuid.UUID) -> None:
     """软删除知识库，并同步软删其下文档，避免残留可被检索。"""
     kb = await get_kb(session, tenant_id, kb_id)
@@ -81,6 +92,7 @@ async def delete_kb(session: AsyncSession, tenant_id: uuid.UUID, kb_id: uuid.UUI
     )
     for doc in docs:
         doc.deleted_at = utcnow()
+    await session.execute(delete(AgentKb).where(AgentKb.kb_id == kb_id))
     await session.flush()
 
 

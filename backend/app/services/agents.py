@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFound
+from app.core.errors import Conflict, NotFound
 from app.models import Agent, AgentKb, KnowledgeBase, ModelConfig
 from app.models.base import utcnow
 from app.schemas.agent import AgentCreate, AgentUpdate
@@ -131,6 +131,8 @@ async def delete_agent(
     session: AsyncSession, tenant_id: uuid.UUID, app_id: uuid.UUID, agent_id: uuid.UUID
 ) -> None:
     agent = await get_agent(session, tenant_id, app_id, agent_id)
+    if agent.is_default:
+        raise Conflict("默认兜底 Agent 不能删除，请先将其他 Agent 设为默认")
     agent.deleted_at = utcnow()
     # 解绑知识库，避免悬挂引用
     await session.execute(delete(AgentKb).where(AgentKb.agent_id == agent_id))

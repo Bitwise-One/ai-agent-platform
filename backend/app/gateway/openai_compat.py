@@ -51,10 +51,11 @@ class OpenAICompatLLM:
     def _url(self, path: str) -> str:
         return f"{self._base_url}{path}"
 
-    @staticmethod
-    def _raise_for_status(status: int, body: str) -> None:
+    def _raise_for_status(self, status: int, body: str) -> None:
         if status < 400:
             return
+        if self._api_key:
+            body = body.replace(self._api_key, "[REDACTED]")
         # 429/5xx 属于临时性故障，上层可重试或降级；4xx 多为参数问题，重试无意义
         raise ProviderError(
             f"LLM HTTP {status}: {body[:300]}",

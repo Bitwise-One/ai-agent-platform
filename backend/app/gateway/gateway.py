@@ -88,13 +88,16 @@ class ModelGateway:
         temperature: float | None = None,
         max_tokens: int | None = None,
         tools: list[dict] | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
     ) -> LLMResponse:
         """非流式补全，带重试与降级。"""
         temp = self._settings.llm_temperature if temperature is None else temperature
         tokens = max_tokens or self._settings.llm_max_tokens
 
         # 1) 无真实模型：直接 mock
-        if self._llm is None:
+        provider = self._provider_for(base_url, api_key)
+        if provider is None:
             return await self._mock_llm.complete(messages, model=model, temperature=temp)
 
         # 2) 主模型 + 降级模型依次尝试
@@ -105,7 +108,7 @@ class ModelGateway:
         for candidate in candidates:
             try:
                 return await self._complete_with_retry(
-                    self._llm,
+                    provider,
                     messages,
                     model=candidate,
                     temperature=temp,
@@ -120,9 +123,26 @@ class ModelGateway:
                     break
                 logger.warning("LLM 调用失败，尝试下一候选 model=%s: %s", candidate, exc)
 
+        if (base_url is not None or api_key is not None) and last_error is not None:
+            raise last_error
+
         # 3) 最终兜底：mock，保证调用方永远拿到结果
         logger.error("所有 LLM 候选均失败，使用 mock 兜底。最后错误: %s", last_error)
         return await self._mock_llm.complete(messages, model=model, temperature=temp)
+
+    def _provider_for(self, base_url: str | None, api_key: str | None) -> LLMProvider | None:
+        if base_url is None and api_key is None:
+            return self._llm
+        resolved_url = base_url or self._settings.llm_base_url
+        resolved_key = api_key or self._settings.llm_api_key
+        if not resolved_url or not resolved_key:
+            return None
+        return OpenAICompatLLM(
+            base_url=resolved_url,
+            api_key=resolved_key,
+            default_model=self._settings.llm_model,
+            timeout_s=self._settings.llm_timeout_s,
+        )
 
     async def _complete_with_retry(
         self,
@@ -161,6 +181,8 @@ class ModelGateway:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
     ) -> AsyncIterator[LLMChunk]:
         """流式补全。
 
@@ -169,14 +191,15 @@ class ModelGateway:
         temp = self._settings.llm_temperature if temperature is None else temperature
         tokens = max_tokens or self._settings.llm_max_tokens
 
-        if self._llm is None:
+        provider = self._provider_for(base_url, api_key)
+        if provider is None:
             async for chunk in self._mock_llm.stream(messages, model=model, temperature=temp):
                 yield chunk
             return
 
         started = False
         try:
-            async for chunk in self._llm.stream(
+            async for chunk in provider.stream(
                 messages, model=model, temperature=temp, max_tokens=tokens
             ):
                 started = True
@@ -187,6 +210,8 @@ class ModelGateway:
                 # 已产出部分内容，无法安全重来：记录并结束当前流
                 logger.error("流式中途失败，已终止: %s", exc)
                 return
+            if base_url is not None or api_key is not None:
+                raise
             logger.warning("流式首包前失败，转 mock 兜底: %s", exc)
 
         async for chunk in self._mock_llm.stream(messages, model=model, temperature=temp):

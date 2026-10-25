@@ -5,8 +5,8 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFound
-from app.models import Application
+from app.core.errors import Conflict, NotFound
+from app.models import Application, Workflow
 from app.models.base import utcnow
 from app.schemas.common import PageQuery
 from app.schemas.tenant import ApplicationCreate, ApplicationUpdate
@@ -69,6 +69,17 @@ async def update_application(
 ) -> Application:
     app = await get_application(session, tenant_id, app_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
+        if key == "default_workflow_id" and value is not None:
+            workflow = await session.scalar(
+                select(Workflow).where(
+                    Workflow.id == value,
+                    Workflow.tenant_id == tenant_id,
+                    Workflow.application_id == app_id,
+                    Workflow.deleted_at.is_(None),
+                )
+            )
+            if workflow is None:
+                raise Conflict("默认工作流不存在、已归档或不属于当前应用")
         setattr(app, key, value)
     await session.flush()
     return app

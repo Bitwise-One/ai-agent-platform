@@ -16,11 +16,26 @@ from app.schemas.model import (
     ModelConfigCreate,
     ModelConfigOut,
     ModelConfigUpdate,
+    ModelCredentialWrite,
     ModelProbeResult,
 )
 from app.services import models as model_service
 
 router = APIRouter(prefix="/models", tags=["models"])
+
+
+@router.put("/{config_id}/credential", response_model=ApiResponse[dict])
+async def write_model_credential(
+    config_id: uuid.UUID,
+    payload: ModelCredentialWrite,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    configured = await model_service.set_model_credential(
+        db, ctx.tenant_id, config_id, payload.api_key if payload.action == "set" else None
+    )
+    return ApiResponse(data={"configured": configured}, request_id=get_request_id(request))
 
 
 @router.post("", response_model=ApiResponse[ModelConfigOut])

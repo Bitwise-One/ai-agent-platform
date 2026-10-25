@@ -89,6 +89,100 @@ async def test_model_config_scoped_by_tenant(client):
 
 
 @pytest.mark.asyncio
+async def test_model_credential_is_write_only_and_encrypted(client, session, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import models as model_service
+
+    monkeypatch.setattr(
+        model_service,
+        "get_settings",
+        lambda: SimpleNamespace(credential_encryption_key="test-encryption-key-that-is-long-enough", llm_base_url="https://api.example.com/v1"),
+    )
+    tenant, _ = await _bootstrap(client, "t-model-key")
+    headers = {TENANT_HEADER: tenant}
+    created = await client.post(
+        "/api/v1/models",
+        json={"name": "BYOK", "model_name": "custom-model", "base_url": None},
+        headers=headers,
+    )
+    assert created.status_code == 200, created.text
+    model_id = created.json()["data"]["id"]
+    secret = "custom-provider-secret-never-return-this"
+
+    saved = await client.put(
+        f"/api/v1/models/{model_id}/credential",
+        json={"action": "set", "api_key": secret},
+        headers=headers,
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["data"] == {"configured": True}
+    assert secret not in saved.text
+
+    import uuid
+
+    from app.models import ModelConfig
+
+    record = await session.get(ModelConfig, uuid.UUID(model_id))
+    assert record is not None
+    assert record.api_key_encrypted != secret
+    assert model_service.decrypt_model_credential(record) == secret
+
+    listed = await client.get("/api/v1/models", headers=headers)
+    assert listed.json()["data"]["items"][0]["api_key_configured"] is True
+    assert secret not in listed.text
+
+    cleared = await client.put(
+        f"/api/v1/models/{model_id}/credential",
+        json={"action": "clear"},
+        headers=headers,
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["data"] == {"configured": False}
+
+
+@pytest.mark.asyncio
+async def test_model_credential_refuses_missing_encryption_key(client, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import models as model_service
+
+    monkeypatch.setattr(model_service, "get_settings", lambda: SimpleNamespace(credential_encryption_key="", llm_base_url="https://api.example.com/v1"))
+    tenant, _ = await _bootstrap(client, "t-model-key-no-master")
+    model_id = (await client.post(
+        "/api/v1/models", json={"name": "BYOK", "model_name": "custom-model"}, headers={TENANT_HEADER: tenant}
+    )).json()["data"]["id"]
+    response = await client.put(
+        f"/api/v1/models/{model_id}/credential",
+        json={"action": "set", "api_key": "secret"},
+        headers={TENANT_HEADER: tenant},
+    )
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_model_rejects_unsafe_custom_endpoint(client):
+    tenant, _ = await _bootstrap(client, "t-model-ssrf")
+    response = await client.post(
+        "/api/v1/models",
+        json={"name": "Private endpoint", "model_name": "private", "base_url": "https://127.0.0.1/v1"},
+        headers={TENANT_HEADER: tenant},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_model_capabilities_reject_inline_credentials(client):
+    tenant, _ = await _bootstrap(client, "t-model-no-inline-key")
+    response = await client.post(
+        "/api/v1/models",
+        json={"name": "bad", "model_name": "custom", "capabilities": {"api_key": "plaintext"}},
+        headers={TENANT_HEADER: tenant},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_model_probe_returns_result(client):
     """探测接口在离线环境也应正常返回（mock 兜底），不能 500。"""
     tenant, _ = await _bootstrap(client, "t-probe")

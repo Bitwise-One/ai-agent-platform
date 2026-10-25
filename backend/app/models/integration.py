@@ -86,11 +86,17 @@ class ModelConfig(Base, CreatedAtMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False, comment="逻辑模型名（业务侧引用）")
     provider: Mapped[str] = mapped_column(String(32), nullable=False, comment="厂商：openai/anthropic/qwen 等")
     model_name: Mapped[str] = mapped_column(String(128), nullable=False, comment="厂商模型名（实际调用用）")
+    base_url: Mapped[str | None] = mapped_column(String(512), comment="模型兼容 API 地址（HTTPS，空值继承部署默认地址）")
+    api_key_encrypted: Mapped[str | None] = mapped_column(Text, comment="Fernet 加密的模型 API Key 密文，禁止通过 API 返回")
     context_len: Mapped[int | None] = mapped_column(Integer, comment="上下文窗口长度（token）")
     price_in: Mapped[float | None] = mapped_column(Numeric(12, 6), comment="每 1K 输入 token 单价（元）")
     price_out: Mapped[float | None] = mapped_column(Numeric(12, 6), comment="每 1K 输出 token 单价（元）")
     capabilities: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict, comment="能力标签（如 vision、function_call、streaming）")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", comment="状态：active/suspended")
+
+    @property
+    def api_key_configured(self) -> bool:
+        return bool(self.api_key_encrypted)
 
 
 class ApiKey(Base, CreatedAtMixin):

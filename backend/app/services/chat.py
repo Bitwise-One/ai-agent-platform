@@ -90,8 +90,8 @@ async def _load_spec(
         return WorkflowSpec.from_definition(definition)
 
     model_ids = [a.model_config_id for a in db_agents if a.model_config_id]
-    model_names = await model_service.resolve_model_names(session, tenant_id, model_ids)
-    return WorkflowSpec.from_db(db_agents, definition, model_names=model_names)
+    model_runtime = await model_service.resolve_model_runtime(session, tenant_id, model_ids)
+    return WorkflowSpec.from_db(db_agents, definition, model_runtime=model_runtime)
 
 
 def _make_retriever(session: AsyncSession, tenant_id: uuid.UUID) -> RagRetriever:

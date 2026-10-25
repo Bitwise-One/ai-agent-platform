@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound
 from app.models import Application, Workflow, WorkflowVersion
+from app.models.base import utcnow
 from app.schemas.workflow import GraphDefinition, WorkflowCreate, WorkflowUpdate
 
 
@@ -39,7 +40,11 @@ async def list_workflows(
 ) -> list[Workflow]:
     rows = await session.scalars(
         select(Workflow)
-        .where(Workflow.tenant_id == tenant_id, Workflow.application_id == app_id)
+        .where(
+            Workflow.tenant_id == tenant_id,
+            Workflow.application_id == app_id,
+            Workflow.deleted_at.is_(None),
+        )
         .order_by(Workflow.created_at.asc())
     )
     return list(rows)
@@ -53,6 +58,7 @@ async def get_workflow(
             Workflow.id == wf_id,
             Workflow.tenant_id == tenant_id,
             Workflow.application_id == app_id,
+            Workflow.deleted_at.is_(None),
         )
     )
     if wf is None:
@@ -72,6 +78,19 @@ async def update_workflow(
         setattr(wf, key, value)
     await session.flush()
     return wf
+
+
+async def archive_workflow(
+    session: AsyncSession, tenant_id: uuid.UUID, app_id: uuid.UUID, wf_id: uuid.UUID
+) -> None:
+    wf = await get_workflow(session, tenant_id, app_id, wf_id)
+    app = await session.scalar(select(Application).where(Application.id == app_id, Application.tenant_id == tenant_id))
+    if app and app.default_workflow_id == wf.id:
+        raise Conflict("该工作流当前绑定为应用默认流程，请先切换默认工作流后再归档")
+    wf.deleted_at = utcnow()
+    wf.status = "archived"
+    wf.updated_at = utcnow()
+    await session.flush()
 
 
 # ---------------------------------------------------------------- 可视化编排

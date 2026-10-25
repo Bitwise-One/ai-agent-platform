@@ -76,6 +76,18 @@ async def update_workflow(
     return ApiResponse(data=WorkflowOut.model_validate(wf), request_id=get_request_id(request))
 
 
+@router.delete("/{wf_id}", response_model=ApiResponse[dict])
+async def archive_workflow(
+    app_id: uuid.UUID,
+    wf_id: uuid.UUID,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    await wf_service.archive_workflow(db, ctx.tenant_id, app_id, wf_id)
+    return ApiResponse(data={"deleted": str(wf_id), "archived": True}, request_id=get_request_id(request))
+
+
 # ---------------------------------------------------------------- 编排数据
 @router.get("/{wf_id}/graph", response_model=ApiResponse[GraphDefinition])
 async def get_graph(

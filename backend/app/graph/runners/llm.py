@@ -124,7 +124,11 @@ async def llm_agent_runner(agent: AgentSpec, state: AgentState) -> AgentResult:
             # 流式路径：逐 token 外推给 SSE，同时累积完整文本
             parts: list[str] = []
             async for chunk in gateway.stream(
-                messages, model=agent.model, temperature=agent.temperature
+                messages,
+                model=agent.model,
+                temperature=agent.temperature,
+                base_url=agent.model_base_url,
+                api_key=agent.model_api_key,
             ):
                 parts.append(chunk.text)
                 emit_token(chunk.text)
@@ -139,6 +143,8 @@ async def llm_agent_runner(agent: AgentSpec, state: AgentState) -> AgentResult:
                     model=agent.model,
                     temperature=agent.temperature,
                     tools=tools or None,
+                    base_url=agent.model_base_url,
+                    api_key=agent.model_api_key,
                 )
                 tokens += resp.tokens_total
                 if not resp.tool_calls:

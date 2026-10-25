@@ -54,7 +54,7 @@ class Agent(Base, TimestampMixin, SoftDeleteMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", comment="状态：active/suspended/deleted")
 
 
-class Workflow(Base, TimestampMixin):
+class Workflow(Base, TimestampMixin, SoftDeleteMixin):
     """工作流 = LangGraph 图模板。"""
 
     __tablename__ = "workflow"

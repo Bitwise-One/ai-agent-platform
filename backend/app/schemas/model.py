@@ -9,27 +9,47 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+_SECRET_FIELDS = {"api_key", "authorization", "password", "secret", "token", "credential"}
+
+
+def _reject_inline_model_secrets(value: dict) -> dict:
+    def visit(item):
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if isinstance(key, str) and key.casefold() in _SECRET_FIELDS:
+                    raise ValueError("凭据必须通过 write-only 模型密钥接口设置，不能放入 capabilities")
+                visit(child)
+        elif isinstance(item, list):
+            for child in item:
+                visit(child)
+    visit(value)
+    return value
 
 
 class ModelConfigCreate(BaseModel):
     """新建模型配置。
 
-    注意：这里不接收 api_key / base_url。M2 阶段真实凭据由部署环境的
-    环境变量提供（`LLM_API_KEY` 等），模型配置只描述「用哪个模型」；
-    租户自带密钥（BYOK）涉及密钥托管与轮换，留到 M3 再做，
-    以免明文密钥落库。
+    API Key 通过独立 write-only 凭据接口设置，不在模型 CRUD 响应中出现。
     """
 
     name: str = Field(min_length=1, max_length=128, description="控制台展示名")
     provider: str = Field(default="openai_compat", max_length=32, description="协议适配器")
     model_name: str = Field(min_length=1, max_length=128, description="厂商侧的模型 ID")
+    base_url: str | None = Field(default=None, max_length=512, description="OpenAI 兼容 API 地址")
     context_len: int | None = Field(default=None, ge=512, le=2_000_000)
     price_in: float | None = Field(default=None, ge=0, description="每 1K 输入 token 单价")
     price_out: float | None = Field(default=None, ge=0, description="每 1K 输出 token 单价")
     capabilities: dict = Field(default_factory=dict)
     status: str = Field(default="active")
+
+    @field_validator("capabilities")
+    @classmethod
+    def reject_inline_secrets(cls, value: dict) -> dict:
+        return _reject_inline_model_secrets(value)
 
 
 class ModelConfigUpdate(BaseModel):
@@ -38,11 +58,17 @@ class ModelConfigUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     provider: str | None = Field(default=None, max_length=32)
     model_name: str | None = Field(default=None, min_length=1, max_length=128)
+    base_url: str | None = Field(default=None, max_length=512)
     context_len: int | None = Field(default=None, ge=512, le=2_000_000)
     price_in: float | None = Field(default=None, ge=0)
     price_out: float | None = Field(default=None, ge=0)
     capabilities: dict | None = None
     status: str | None = None
+
+    @field_validator("capabilities")
+    @classmethod
+    def reject_inline_secrets(cls, value: dict | None) -> dict | None:
+        return _reject_inline_model_secrets(value) if value is not None else None
 
 
 class ModelConfigOut(BaseModel):
@@ -53,12 +79,14 @@ class ModelConfigOut(BaseModel):
     name: str
     provider: str
     model_name: str
+    base_url: str | None = None
     context_len: int | None
     price_in: float | None
     price_out: float | None
     capabilities: dict
     status: str
     created_at: datetime
+    api_key_configured: bool = False
 
 
 class ModelProbeResult(BaseModel):
@@ -75,3 +103,16 @@ class ModelProbeResult(BaseModel):
     latency_ms: int
     sample: str = ""
     detail: str | None = None
+
+
+class ModelCredentialWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: str | None = Field(default=None, min_length=1, max_length=4096)
+    action: Literal["set", "clear"] = "set"
+
+    @model_validator(mode="after")
+    def validate_action(self):
+        if self.action == "set" and not self.api_key:
+            raise ValueError("设置凭据时 API Key 不能为空")
+        return self

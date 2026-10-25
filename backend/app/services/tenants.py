@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, Forbidden, NotFound
 from app.models import Tenant
+from app.models.base import utcnow
 from app.schemas.common import PageQuery
 from app.schemas.tenant import TenantCreate, TenantUpdate
 
@@ -46,10 +47,28 @@ async def update_tenant(
 ) -> Tenant:
     tenant = await get_tenant(session, tenant_id)
     data = payload.model_dump(exclude_unset=True)
+    if data.get("status") not in (None, "active") and tenant.status == "active":
+        active_count = await session.scalar(
+            select(func.count()).select_from(Tenant).where(Tenant.deleted_at.is_(None), Tenant.status == "active")
+        ) or 0
+        if active_count <= 1:
+            raise Conflict("平台至少需要保留一个启用租户")
     for key, value in data.items():
         setattr(tenant, key, value)
     await session.flush()
     return tenant
+
+
+async def delete_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
+    tenant = await get_tenant(session, tenant_id)
+    active_count = await session.scalar(
+        select(func.count()).select_from(Tenant).where(Tenant.deleted_at.is_(None), Tenant.status == "active")
+    ) or 0
+    if tenant.status == "active" and active_count <= 1:
+        raise Conflict("平台至少需要保留一个启用租户")
+    tenant.deleted_at = utcnow()
+    tenant.status = "deleted"
+    await session.flush()
 
 
 async def ensure_tenant_matches(session: AsyncSession, tenant_id: uuid.UUID) -> None:

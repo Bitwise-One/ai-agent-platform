@@ -20,6 +20,7 @@ dependencies = [
     "mcp>=2.3.0",
     "wasmtime>=50.0.1",
     "jsonschema>=4.26.0",
+    "cryptography>=50.0.2",
 ]
 
 [dependency-groups]

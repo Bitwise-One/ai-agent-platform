@@ -26,6 +26,8 @@ class AgentSpec:
     is_default: bool = False
     # M2 新增：模型与知识库
     model: str | None = None
+    model_base_url: str | None = None
+    model_api_key: str | None = field(default=None, repr=False, compare=False)
     temperature: float | None = None
     kb_ids: tuple[str, ...] = ()
     max_context_len: int = 8000
@@ -107,16 +109,18 @@ class WorkflowSpec:
         agents: list[Agent],
         definition: dict,
         model_names: dict[str, str] | None = None,
+        model_runtime: dict[str, dict[str, str | None]] | None = None,
     ) -> WorkflowSpec:
         """用数据库中的 Agent 覆盖图定义中的 Agent 列表。
 
         路由参数（router / threshold / 默认 Agent）仍以图定义为准，
         但提示词、模型、温度以数据库为唯一事实来源。
 
-        `model_names` 是「model_config_id → 厂商模型名」的映射，由调用方一次性查好。
+        `model_runtime` 是「model_config_id → 模型名/端点/进程内凭据」映射，由调用方一次性查好。
         为什么要映射而不是让图节点自己查库：
         - 图节点是纯执行逻辑，不应持有数据库会话（否则 checkpointer 序列化会出问题）；
-        - 同一请求内多个 Agent 可能引用同一模型，预取可避免 N+1 查询。
+        - 同一请求内多个 Agent 可能引用同一模型，预取可避免 N+1 查询；
+        - 凭据只存在于不可变执行规格的进程内存中，不进入 checkpoint、API 响应或 trace。
         映射里查不到的 ID 会退化为 None，由网关回落到默认模型——
         这是刻意的降级：模型配置被删掉不应让整个对话失败。
         """
@@ -125,6 +129,7 @@ class WorkflowSpec:
             return base
 
         names = model_names or {}
+        runtime = model_runtime or {}
         default_from_def = definition.get("default_agent")
         if not default_from_def:
             # 图里没指定默认 Agent 时，认 Agent 表里的 is_default，
@@ -135,6 +140,9 @@ class WorkflowSpec:
         specs: list[AgentSpec] = []
         for agent in agents:
             model_name = names.get(str(agent.model_config_id)) if agent.model_config_id else None
+            model_config = runtime.get(str(agent.model_config_id)) if agent.model_config_id else None
+            if model_config:
+                model_name = model_config.get("model") or model_name
             # 关键词取「图定义里的覆盖值 > Agent 表里的配置」。
             # 早期实现只读图定义，而前端编排画布并不维护这份 map，
             # 结果所有 Agent 的关键词都是空 -> 规则路由永不命中，任何输入都落到默认 Agent。
@@ -148,6 +156,8 @@ class WorkflowSpec:
                     prompt=agent.system_prompt or "",
                     is_default=str(agent.id) == default_from_def,
                     model=model_name,
+                    model_base_url=model_config.get("base_url") if model_config else None,
+                    model_api_key=model_config.get("api_key") if model_config else None,
                     temperature=agent.temperature,
                     kb_ids=(),  # 知识库绑定由 retriever 按 agent_id 查询，避免此处拉全表
                     max_context_len=agent.max_context_len,

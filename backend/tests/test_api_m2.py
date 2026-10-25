@@ -52,12 +52,21 @@ async def test_agent_crud(client):
     )
     assert patched.json()["data"]["temperature"] == 0.9
 
-    deleted = await client.delete(
+    protected = await client.delete(
         f"/api/v1/apps/{app_id}/agents/{agent['id']}", headers=headers
     )
+    assert protected.status_code == 409
+    replacement = await client.post(
+        f"/api/v1/apps/{app_id}/agents",
+        json={"name": "替代兜底", "is_default": True},
+        headers=headers,
+    )
+    assert replacement.status_code == 200
+    deleted = await client.delete(f"/api/v1/apps/{app_id}/agents/{agent['id']}", headers=headers)
     assert deleted.status_code == 200
     listed2 = await client.get(f"/api/v1/apps/{app_id}/agents", headers=headers)
-    assert listed2.json()["data"]["total"] == 0
+    assert listed2.json()["data"]["total"] == 1
+    assert listed2.json()["data"]["items"][0]["id"] == replacement.json()["data"]["id"]
 
 
 # ------------------------------------------------------------------ 知识库 + RAG
@@ -157,6 +166,12 @@ async def test_workflow_crud_and_graph(client):
     assert data["edges"][0]["target"] == "agent-1"
     assert data["router"] == "hybrid"
 
+    archived = await client.delete(f"/api/v1/apps/{app_id}/workflows/{wf_id}", headers=headers)
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["data"]["archived"] is True
+    assert (await client.get(f"/api/v1/apps/{app_id}/workflows/{wf_id}", headers=headers)).status_code == 404
+    assert (await client.get(f"/api/v1/apps/{app_id}/workflows", headers=headers)).json()["data"]["items"] == []
+
 
 @pytest.mark.asyncio
 async def test_workflow_version_release_rollback_and_binding(client):
@@ -188,12 +203,46 @@ async def test_workflow_version_release_rollback_and_binding(client):
     app = await client.get(f"/api/v1/apps/{app_id}", headers=headers)
     assert app.json()["data"]["default_workflow_id"] == wf_id
 
+    bound_delete = await client.delete(f"/api/v1/apps/{app_id}/workflows/{wf_id}", headers=headers)
+    assert bound_delete.status_code == 409
+
     rolled = await client.post(
         f"/api/v1/apps/{app_id}/workflows/{wf_id}/rollback",
         json={"version_id": v1_id},
         headers=headers,
     )
     assert rolled.status_code == 200, rolled.text
+
+
+@pytest.mark.asyncio
+async def test_conversation_archive_and_active_run_guard(client):
+    tenant, app_id = await _bootstrap(client, "t-conv-archive")
+    headers = {TENANT_HEADER: tenant, "X-App-Id": app_id}
+    conversation = await client.post(
+        "/api/v1/conversations", json={"user_id": "console-user", "title": "测试会话"}, headers=headers
+    )
+    assert conversation.status_code == 200, conversation.text
+    conversation_id = conversation.json()["data"]["id"]
+    archived = await client.delete(f"/api/v1/conversations/{conversation_id}", headers=headers)
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["data"]["status"] == "archived"
+    detail = await client.get(f"/api/v1/conversations/{conversation_id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["data"]["status"] == "archived"
+
+
+@pytest.mark.asyncio
+async def test_tenant_soft_delete_preserves_one_active_tenant(client):
+    tenant_a, _ = await _bootstrap(client, "t-delete-a")
+    blocked = await client.delete(f"/api/v1/tenants/{tenant_a}")
+    assert blocked.status_code == 409
+
+    tenant_b, _ = await _bootstrap(client, "t-delete-b")
+    deleted = await client.delete(f"/api/v1/tenants/{tenant_a}")
+    assert deleted.status_code == 200
+    assert deleted.json()["data"]["deleted"] == tenant_a
+    listed = await client.get("/api/v1/tenants")
+    assert {item["id"] for item in listed.json()["data"]["items"]} == {tenant_b}
 
 
 # ------------------------------------------------------------------ SSE

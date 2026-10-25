@@ -11,6 +11,11 @@ class KnowledgeBaseCreate(BaseModel):
     description: str | None = None
 
 
+class KnowledgeBaseUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = None
+
+
 class KnowledgeBaseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

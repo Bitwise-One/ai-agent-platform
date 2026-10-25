@@ -79,6 +79,23 @@ async def get_conversation(
     )
 
 
+@router.delete("/{conversation_id}", response_model=ApiResponse[dict])
+async def archive_conversation(
+    conversation_id: uuid.UUID,
+    request: Request,
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    app_id = _require_app(ctx)
+    conv = await conv_service.archive_conversation(
+        db, ctx.tenant_id, app_id, conversation_id, user_id=ctx.user_id
+    )
+    return ApiResponse(
+        data={"archived": str(conv.id), "status": conv.status},
+        request_id=get_request_id(request),
+    )
+
+
 @router.get("/{conversation_id}/messages", response_model=ApiResponse[Page[MessageOut]])
 async def list_messages(
     conversation_id: uuid.UUID,

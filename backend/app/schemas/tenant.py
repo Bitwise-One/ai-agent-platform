@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,7 +15,7 @@ class TenantCreate(BaseModel):
 
 class TenantUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=128)
-    status: str | None = None
+    status: Literal["active", "suspended"] | None = None
     quota: dict | None = None
 
 

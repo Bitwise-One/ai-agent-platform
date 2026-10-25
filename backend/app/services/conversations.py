@@ -55,6 +55,30 @@ async def get_conversation(
     return conv
 
 
+async def archive_conversation(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    app_id: uuid.UUID,
+    conversation_id: uuid.UUID,
+    user_id: str | None = None,
+) -> Conversation:
+    conv = await get_conversation(session, tenant_id, app_id, conversation_id, user_id=user_id)
+    active_run = await session.scalar(
+        select(TaskRun.id).where(
+            TaskRun.conversation_id == conversation_id,
+            TaskRun.status.not_in(TaskStatus.TERMINAL),
+        ).limit(1)
+    )
+    if active_run:
+        from app.core.errors import Conflict
+
+        raise Conflict("会话仍有执行中的任务，请等待任务结束后再归档")
+    conv.status = "archived"
+    conv.archived_at = utcnow()
+    await session.flush()
+    return conv
+
+
 async def list_conversations(
     session: AsyncSession,
     tenant_id: uuid.UUID,

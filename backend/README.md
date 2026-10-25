@@ -14,6 +14,10 @@ uv run uvicorn app.main:app --reload     # 启动，文档 http://127.0.0.1:8000
 
 > `scripts/init_db.py`（`create_all`）仅用于本地快速验证，正式环境一律用 Alembic。
 
+模型 BYOK 凭据需配置独立的 `CREDENTIAL_ENCRYPTION_KEY`（至少 32 个随机字符），用于 Fernet 加密数据库中的供应商 Key。该值必须由部署密钥管理注入并备份；更换前需先迁移/重加密已有凭据。未配置时 API 会拒绝写入凭据，不会明文回退。
+
+生成随机主密钥示例：`uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`。生产环境不要把主密钥提交到仓库或写入数据库。
+
 测试与检查：
 
 ```bash

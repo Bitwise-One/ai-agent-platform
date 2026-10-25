@@ -57,3 +57,11 @@ async def update_tenant(
 ) -> ApiResponse[TenantOut]:
     tenant = await tenant_service.update_tenant(db, tenant_id, payload)
     return ApiResponse(data=TenantOut.model_validate(tenant), request_id=get_request_id(request))
+
+
+@router.delete("/{tenant_id}", response_model=ApiResponse[dict])
+async def delete_tenant(
+    tenant_id: uuid.UUID, request: Request, db: AsyncSession = DbDep
+) -> ApiResponse[dict]:
+    await tenant_service.delete_tenant(db, tenant_id)
+    return ApiResponse(data={"deleted": str(tenant_id)}, request_id=get_request_id(request))

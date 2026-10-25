@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # 安全
     secret_key: str = "dev-only-change-me"
     api_key_prefix: str = "ak"
+    credential_encryption_key: str = ""
 
     # 编排（对应 PRD 兜底机制）
     max_iterations: int = 20
