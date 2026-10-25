@@ -507,7 +507,7 @@ export function WorkflowEditorPage() {
           </div>
 
           <div
-            className="scroll-slim relative overflow-auto bg-white"
+            className="workflow-canvas scroll-slim relative overflow-auto"
             style={{ maxHeight: 620 }}
           >
             <div

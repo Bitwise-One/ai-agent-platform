@@ -7,16 +7,15 @@
  */
 
 import { motion } from "framer-motion";
-import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import { agentsApi, knowledgeApi, modelsApi, workflowsApi } from "../lib/api";
 import { useAsync } from "../lib/hooks";
-import { EASE, listContainer, listItem, riseIn, spring } from "../lib/motion";
+import { EASE, listContainer, listItem, spring } from "../lib/motion";
 import { useWorkspace } from "../state/workspace";
-import { AuroraField, CountUp, Odometer, popItem, Sparkline, Stagger } from "../components/motion";
+import { CountUp, Odometer, popItem, Stagger } from "../components/motion";
 import { Card, CardHeader, ErrorNote, PageHeader, Skeleton, StatusTag, statusText, taskTone } from "../components/ui";
-import { IconArrowRight, IconBook, IconGraph } from "../components/icons";
+import { IconArrowRight, IconBook, IconGraph, IconSparkle } from "../components/icons";
 
 function Metric({
   label,
@@ -34,10 +33,10 @@ function Metric({
       variants={listItem}
       whileHover={{ y: -2 }}
       transition={spring}
-      className="card-sheen rounded-card border border-line-split bg-surface shadow-card"
+      className="overview-metric rounded-[10px] border border-white/60 bg-white/55 backdrop-blur-xl"
     >
-      <div className="px-6 py-5">
-        <div className="text-caption text-ink-secondary">{label}</div>
+      <div className="px-5 py-5">
+        <div className="text-caption font-medium text-ink-secondary">{label}</div>
         <div className="mt-2 flex items-baseline gap-1">
           {loading ? (
             <Skeleton className="h-7 w-12" />
@@ -45,7 +44,7 @@ function Metric({
             <>
               {/* 数字用里程表：从 0 滚上来，后续数值变化也能看清是哪一位在进位 */}
               {typeof value === "number" ? (
-                <Odometer value={value} fontSize={28} enter className="text-ink-primary" />
+                <Odometer value={value} fontSize={32} enter className="text-ink-primary" />
               ) : (
                 <CountUp value={value} className="tabular text-metric text-ink-primary" />
               )}
@@ -56,15 +55,6 @@ function Metric({
       </div>
     </motion.div>
   );
-}
-
-/** 由真实计数派生的稳定序列：不随机，避免每次渲染折线都在抖 */
-function deriveSeries(seed: number, length = 14): number[] {
-  return Array.from({ length }, (_, index) => {
-    const wave = Math.sin((index + seed) * 0.9) * 14;
-    const ramp = index * (2.2 + (seed % 3) * 0.6);
-    return Math.max(6, Math.round(28 + ramp + wave + ((index * seed) % 7)));
-  });
 }
 
 export function OverviewPage() {
@@ -92,28 +82,52 @@ export function OverviewPage() {
   const loading = agents.loading || flows.loading || models.loading || kbs.loading;
   const error = agents.error || flows.error || models.error || kbs.error;
 
-  const trendSeed = agents.data?.length ?? 1;
-  const trends = useMemo(
-    () => [
-      { label: "会话量", unit: "次", tone: "brand" as const, data: deriveSeries(trendSeed) },
-      { label: "工具调用", unit: "次", tone: "brand" as const, data: deriveSeries(trendSeed + 3) },
-      {
-        label: "降级次数",
-        unit: "次",
-        tone: "error" as const,
-        data: deriveSeries(trendSeed + 7).map((n) => Math.max(1, Math.round(n * 0.16))),
-      },
-    ],
-    [trendSeed],
-  );
-
   return (
-    <div>
-      {/* 极光只铺在「页头 + KPI」这一层，卡片是白底会自然挡住它，
-          所以数据区仍然干净，只在留白处透出一点流动感 */}
+    <div className="overview-page">
       <div className="relative">
-        <AuroraField className="pointer-events-none absolute -top-6 left-0 right-0 h-[240px] opacity-80" />
-        <div className="relative">
+          <motion.section
+            className="overview-banner relative mb-7 min-h-[214px] overflow-hidden rounded-[18px] border border-white/15 px-8 py-8 text-white"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: EASE }}
+          >
+            <div className="overview-orbit" aria-hidden="true"><i /><i /><i /><b /></div>
+            <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a8f0dc]">
+                  <IconSparkle size={13} /> 工作区概况
+                </div>
+                <h2 className="max-w-xl text-[24px] font-semibold text-white">
+                  {app ? app.name : "工作区已准备就绪"}
+                </h2>
+                <p className="mt-1.5 max-w-xl text-sm text-white/55">
+                  Agent、工作流与知识资源的运行状态
+                </p>
+              </div>
+              <div className="flex items-center gap-4 text-right">
+                <div>
+                  <div className="text-[11px] text-white/50">已配置 Agent</div>
+                  <div className="mt-1 flex items-center justify-end gap-2 text-xl font-semibold text-white">
+                    <motion.span
+                      className="h-2 w-2 rounded-full bg-[#d5f36a]"
+                    />
+                    {agents.data?.length ?? 0}
+                  </div>
+                </div>
+                <div className="h-10 w-px bg-white/10" />
+                <div>
+                  <div className="text-[11px] text-white/50">服务状态</div>
+                  <div className="mt-1 text-sm font-medium text-[#a8f0dc]">可用</div>
+                </div>
+              </div>
+            </div>
+            <motion.div
+            className="relative mt-6 h-px origin-left bg-white/20"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: EASE }}
+            />
+          </motion.section>
           <PageHeader
             title="概览"
             description={app ? `${app.name} · 编排与接入现状` : "尚未选择应用"}
@@ -139,10 +153,9 @@ export function OverviewPage() {
               loading={docStats.loading}
             />
           </Stagger>
-        </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="overview-panels mt-7 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader
             title="编排现状"
@@ -268,25 +281,6 @@ export function OverviewPage() {
         </Card>
       </div>
 
-      {/* 趋势条：描边自绘的迷你折线。数据由真实计数派生（不是随机），
-          所以刷新页面形状一致，用户不会怀疑「数字在乱跳」 */}
-      <Card className="mt-4">
-        <CardHeader title="近 14 天调用趋势" description="会话、工具调用与降级次数" />
-        <div className="grid grid-cols-1 gap-6 px-6 py-5 md:grid-cols-3">
-          {trends.map((item, index) => (
-            <motion.div key={item.label} {...riseIn(0.12 + index * 0.08)}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-caption text-ink-secondary">{item.label}</span>
-                <span className="tabular text-body text-ink-primary">
-                  {item.data[item.data.length - 1]}
-                  <span className="ml-1 text-caption text-ink-tertiary">{item.unit}</span>
-                </span>
-              </div>
-              <Sparkline data={item.data} tone={item.tone} height={44} delay={0.12} className="mt-2" />
-            </motion.div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }

@@ -267,7 +267,7 @@ export function PageHeader({
 }) {
   // 标题比描述早 60ms、比操作按钮早 100ms：视线自然从"这是哪"落到"能做什么"
   return (
-    <div className="mb-6 flex items-end justify-between gap-4">
+    <div className="page-header mb-6 flex items-end justify-between gap-4 max-sm:flex-wrap">
       <div className="min-w-0">
         <motion.h1
           className="text-h1 text-ink-primary"
@@ -290,7 +290,7 @@ export function PageHeader({
       </div>
       {actions && (
         <motion.div
-          className="flex shrink-0 items-center gap-2"
+          className="flex shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-wrap"
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: EASE, delay: 0.1 }}

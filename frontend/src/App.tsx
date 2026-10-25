@@ -66,7 +66,7 @@ function SetupCard({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-layout px-6">
+    <div className="setup-scene flex min-h-screen items-center justify-center bg-surface-layout px-6">
       <motion.div
         // 引导页是全站「第一印象」：卡片整体轻落，logo 弹一下，标题逐字翻入
         initial={{ opacity: 0, y: 12, scale: 0.985 }}

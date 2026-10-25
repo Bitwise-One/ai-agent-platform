@@ -68,26 +68,30 @@ export function Shell({ children }: { children: ReactNode }) {
   const location = useLocation();
   // 控制台是内层滚动容器，滚动进度必须挂在它身上（window 永远不滚）
   const mainRef = useRef<HTMLElement>(null);
+  const pageTitle = NAV.find((item) => item.end ? location.pathname === item.to : location.pathname.startsWith(item.to))?.label ?? "工作流画布";
 
   return (
-    <div className="flex h-full min-h-screen bg-surface-layout">
-      <aside className="flex w-[216px] shrink-0 flex-col border-r border-line-split bg-surface">
+    <div className="console-shell flex h-full min-h-screen bg-[#e9eff3]">
+      <aside className="console-sidebar flex w-[244px] shrink-0 flex-col border-r border-white/20 bg-[#111a21]/90 text-white backdrop-blur-2xl max-md:w-[68px]">
         <motion.div
-          className="flex h-14 items-center gap-2.5 px-5"
+          className="flex h-[72px] items-center gap-3 border-b border-white/10 px-5 max-md:justify-center max-md:px-0"
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 text-caption font-semibold text-white">
+          <motion.span
+            className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-[10px] bg-[#baf4e5] text-[11px] font-black text-[#101d24] shadow-[0_0_28px_rgba(101,236,208,.28)]"
+          >
+            <span className="absolute inset-0 bg-white/30" />
             AP
-          </span>
+          </motion.span>
           <div className="leading-tight">
-            <div className="text-body font-medium text-ink-primary">Agent Platform</div>
-            <div className="text-[11px] text-ink-tertiary">编排控制台</div>
+            <div className="text-body font-semibold text-white max-md:hidden">Agent Platform</div>
+            <div className="text-[10px] tracking-[0.12em] text-white/40 max-md:hidden">AGENT WORKSPACE</div>
           </div>
         </motion.div>
 
-        <nav className="mt-2 flex-1 px-2" aria-label="主导航">
+        <nav className="mt-6 flex-1 px-3 max-md:px-2" aria-label="主导航">
           {NAV.map((item) => {
             const Icon = item.icon;
             const active = item.end
@@ -98,10 +102,10 @@ export function Shell({ children }: { children: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 className={
-                  "relative mb-0.5 flex h-9 items-center gap-2.5 rounded-control px-3 text-body transition-colors duration-150 " +
+                  "relative mb-1 flex h-10 items-center gap-3 rounded-[7px] px-3 text-body transition-colors duration-150 max-md:justify-center max-md:px-0 " +
                   (active
-                    ? "bg-brand-50 font-medium text-brand-600"
-                    : "text-ink-secondary hover:bg-surface-fill hover:text-ink-primary")
+                    ? "bg-white/12 font-semibold text-[#baf4e5] ring-1 ring-white/15"
+                    : "text-white/55 hover:bg-white/8 hover:text-white")
                 }
               >
                 {active && (
@@ -109,7 +113,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   // 位置关系本身就是导航的心智模型，滑动把这个关系画了出来
                   <motion.span
                     layoutId="nav-active-bar"
-                    className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-brand-500"
+                    className="hidden"
                     transition={{ type: "spring", stiffness: 520, damping: 40 }}
                   />
                 )}
@@ -122,21 +126,25 @@ export function Shell({ children }: { children: ReactNode }) {
                 >
                   <Icon size={16} />
                 </motion.span>
-                {item.label}
+                <span className="max-md:hidden">{item.label}</span>
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="border-t border-line-split px-4 py-3">
-          <div className="flex items-center gap-2 text-caption text-ink-tertiary">
+        <div className="border-t border-white/10 px-4 py-4 max-md:hidden">
+          <div className="mb-3 flex items-center justify-between text-[11px] text-white/45">
+            <span>RUNTIME</span>
+            <span className="font-mono text-white/25">v0.1</span>
+          </div>
+          <div className="flex items-center gap-2 text-caption text-white/55">
             {/* 三种健康态三种表达：连接成功慢呼吸、掉线同频呼吸但用错误色（吸引注意）、检测中静止 */}
             {health === "ok" ? (
               <BreathingDot className="text-state-success-fg" />
             ) : health === "down" ? (
               <BreathingDot className="text-state-error-fg" />
             ) : (
-              <span className="h-1.5 w-1.5 rounded-full bg-ink-tertiary" />
+              <span className="h-1.5 w-1.5 rounded-full bg-white/30" />
             )}
             {health === "ok" ? "后端已连接" : health === "down" ? "后端未连接" : "检测中…"}
           </div>
@@ -144,10 +152,10 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line-split bg-surface px-6">
+        <header className="console-header flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-white/55 bg-white/50 px-8 backdrop-blur-2xl max-md:h-auto max-md:min-h-[72px] max-md:flex-wrap max-md:px-4 max-md:py-3">
           {/* 工作区切换是全局状态，首屏一次轻入；之后它一直在，不该反复抢戏 */}
           <motion.div
-            className="flex shrink-0 items-center gap-2 text-caption text-ink-tertiary"
+            className="flex min-w-0 shrink-0 items-center gap-2 text-caption text-black/45 max-md:flex-wrap"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
@@ -159,7 +167,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <>
                 <Select
                   aria-label="选择租户"
-                  className="h-7 w-[168px] shrink-0 text-caption"
+                  className="workspace-select h-9 w-[168px] shrink-0 text-caption"
                   value={tenant?.id ?? ""}
                   onChange={(e) => selectTenant(e.target.value)}
                   disabled={tenants.length === 0}
@@ -171,10 +179,10 @@ export function Shell({ children }: { children: ReactNode }) {
                     </option>
                   ))}
                 </Select>
-                <span className="text-line-base">/</span>
+                <span className="text-black/20">/</span>
                 <Select
                   aria-label="选择应用"
-                  className="h-7 w-[180px] shrink-0 text-caption"
+                  className="workspace-select h-9 w-[180px] shrink-0 text-caption"
                   value={app?.id ?? ""}
                   onChange={(e) => selectApp(e.target.value)}
                   disabled={apps.length === 0}
@@ -191,17 +199,20 @@ export function Shell({ children }: { children: ReactNode }) {
           </motion.div>
 
           {/* 错误信息换内容时淡出淡入：原地替换文本会「跳」 */}
+          <div className="ml-auto flex items-center gap-4">
+          <span className="hidden text-caption font-medium text-[#424a43] md:inline">{pageTitle}</span>
           {error && (
             <FadeSwap id={error}>
               <div className="truncate text-caption text-[#CF1322]">{error}</div>
             </FadeSwap>
           )}
+          </div>
         </header>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
           {/* 滚动进度线：贴着内容区顶部，长页面里给一个「还有多少」的尺子 */}
           <ScrollProgress target={mainRef} />
-          <main ref={mainRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto px-6 py-6">
+          <main ref={mainRef} className="console-main scroll-slim min-h-0 flex-1 overflow-y-auto px-8 py-8 max-md:px-4 max-md:py-5">
             {children}
           </main>
         </div>

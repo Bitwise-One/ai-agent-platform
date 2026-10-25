@@ -47,7 +47,7 @@ export function MotionLabPage() {
   return (
     <div>
       {/* ---------------------------------------------------------- 页头 */}
-      <div className="relative -mx-6 -mt-6 mb-9 overflow-hidden border-b border-line-split bg-surface px-6 pb-9 pt-8">
+      <div className="motion-lab-hero relative -mx-8 -mt-8 mb-9 overflow-hidden border-b border-line-split px-8 pb-9 pt-8 max-md:-mx-4 max-md:-mt-5 max-md:px-4">
         <AuroraField className="opacity-75" />
         {/* 细网格：让极光的流动有参照物，否则只是一团模糊的色 */}
         <div

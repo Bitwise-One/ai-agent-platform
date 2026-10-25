@@ -16,16 +16,16 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 品牌主色：取自 AI 产品调色板，仅保留色相，不使用渐变
+        // Cool jade accent keeps actions distinct from the glass surfaces.
         brand: {
-          50: "#F6F1FB",
-          100: "#EBE0F7",
-          200: "#D6C2EC",
-          300: "#B995DC",
-          400: "#9C6BC9",
-          500: "#7644A7",
-          600: "#63398C",
-          700: "#4E2C6F",
+          50: "#E8F8F5",
+          100: "#C9EFE7",
+          200: "#A0E2D5",
+          300: "#6FD0BF",
+          400: "#35B6A4",
+          500: "#168F83",
+          600: "#11786F",
+          700: "#105F59",
         },
         // 中性色：承载 90% 的界面，文字用透明度而非常量灰，叠在任何底色上都可读
         ink: {
