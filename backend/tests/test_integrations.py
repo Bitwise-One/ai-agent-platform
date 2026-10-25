@@ -2,6 +2,8 @@
 
 import pytest
 
+from app.services import integrations as integration_service
+
 
 async def bootstrap(client, slug: str):
     tenant = (await client.post("/api/v1/tenants", json={"name": slug, "slug": slug})).json()["data"]["id"]
@@ -67,3 +69,58 @@ async def test_mcp_list_paginates_and_filters_status(client):
     assert listed.json()["data"]["total"] == 2
     assert listed.json()["data"]["page"] == 2
     assert len(listed.json()["data"]["items"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_mcp_discovery_registers_tools_for_agent_binding(client, monkeypatch):
+    _, app, agent, headers = await bootstrap(client, "t-mcp-discovery")
+    created = await client.post(
+        "/api/v1/mcp-servers",
+        json={"name": "工具服务", "transport": "http", "config": {"url": "https://tools.example.test/mcp"}},
+        headers=headers,
+    )
+    mcp_id = created.json()["data"]["id"]
+
+    discovered_tools = [
+            {"name": "lookup", "description": "查询资料", "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}}},
+            {"name": "summarize", "description": "摘要", "input_schema": {"type": "object"}},
+        ]
+
+    async def fake_fetch(_server):
+        return discovered_tools
+
+    monkeypatch.setattr(integration_service, "_fetch_mcp_tools", fake_fetch)
+    discovered = await client.post(f"/api/v1/mcp-servers/{mcp_id}/discover", headers=headers)
+    assert discovered.status_code == 200, discovered.text
+    tools = discovered.json()["data"]["tools"]
+    assert {tool["name"] for tool in tools} == {"lookup", "summarize"}
+
+    bound = await client.put(
+        f"/api/v1/apps/{app}/agents/{agent}/mcp-tools",
+        json={"ids": [next(tool["id"] for tool in tools if tool["name"] == "lookup")]},
+        headers=headers,
+    )
+    assert bound.status_code == 200, bound.text
+    assert bound.json()["data"]["ids"] == [next(tool["id"] for tool in tools if tool["name"] == "lookup")]
+    fetched = await client.get(f"/api/v1/apps/{app}/agents/{agent}/mcp-tools", headers=headers)
+    assert fetched.json()["data"]["ids"] == bound.json()["data"]["ids"]
+
+    discovered_tools.clear()
+    await client.post(f"/api/v1/mcp-servers/{mcp_id}/discover", headers=headers)
+    registered = await client.get(
+        f"/api/v1/mcp-servers/{mcp_id}/tools?include_disabled=true", headers=headers
+    )
+    disabled = {tool["name"]: tool["enabled"] for tool in registered.json()["data"]["items"]}
+    assert disabled == {"lookup": False, "summarize": False}
+
+
+@pytest.mark.asyncio
+async def test_stdio_discovery_is_delegated_to_worker(client):
+    _, _, _, headers = await bootstrap(client, "t-mcp-stdio")
+    created = await client.post(
+        "/api/v1/mcp-servers",
+        json={"name": "本地命令", "transport": "stdio", "config": {"command": "untrusted"}},
+        headers=headers,
+    )
+    response = await client.post(f"/api/v1/mcp-servers/{created.json()['data']['id']}/discover", headers=headers)
+    assert response.status_code == 409

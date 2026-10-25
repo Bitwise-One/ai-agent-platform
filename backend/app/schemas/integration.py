@@ -50,6 +50,29 @@ class McpServerOut(BaseModel):
     updated_at: datetime
 
 
+class McpToolOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    mcp_id: uuid.UUID
+    name: str
+    description: str | None
+    input_schema: dict[str, Any]
+    enabled: bool
+    updated_at: datetime
+
+
+class McpToolBind(BaseModel):
+    ids: list[uuid.UUID] = Field(default_factory=list)
+
+    @field_validator("ids")
+    @classmethod
+    def reject_duplicates(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("ids 不得包含重复值")
+        return value
+
+
 class SkillCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = None

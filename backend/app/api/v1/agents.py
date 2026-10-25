@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ContextDep, DbDep, RequestContext, get_request_id
 from app.schemas.agent import AgentCreate, AgentKbBind, AgentOut, AgentUpdate
 from app.schemas.common import ApiResponse
-from app.schemas.integration import IntegrationBind
+from app.schemas.integration import IntegrationBind, McpToolBind
 from app.services import agents as agent_service
 from app.services import integrations as integration_service
 
@@ -155,4 +155,22 @@ async def bind_skills(
     ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
 ) -> ApiResponse[dict]:
     ids = await integration_service.bind_skill(db, ctx.tenant_id, app_id, agent_id, payload.ids)
+    return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
+
+
+@router.get("/{agent_id}/mcp-tools", response_model=ApiResponse[dict])
+async def get_bound_mcp_tools(
+    app_id: uuid.UUID, agent_id: uuid.UUID, request: Request,
+    ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    ids = await integration_service.get_agent_mcp_tool_ids(db, ctx.tenant_id, app_id, agent_id)
+    return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
+
+
+@router.put("/{agent_id}/mcp-tools", response_model=ApiResponse[dict])
+async def bind_mcp_tools(
+    app_id: uuid.UUID, agent_id: uuid.UUID, payload: McpToolBind, request: Request,
+    ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    ids = await integration_service.bind_mcp_tools(db, ctx.tenant_id, app_id, agent_id, payload.ids)
     return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))

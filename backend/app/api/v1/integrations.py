@@ -11,6 +11,7 @@ from app.schemas.integration import (
     McpServerCreate,
     McpServerOut,
     McpServerUpdate,
+    McpToolOut,
     SkillCreate,
     SkillOut,
     SkillUpdate,
@@ -55,6 +56,30 @@ async def update_mcp(mcp_id: uuid.UUID, payload: McpServerUpdate, request: Reque
 async def delete_mcp(mcp_id: uuid.UUID, request: Request, ctx: RequestContext = ContextDep, db: AsyncSession = DbDep):
     await service.delete_mcp(db, ctx.tenant_id, mcp_id)
     return ApiResponse(data={"deleted": str(mcp_id)}, request_id=get_request_id(request))
+
+
+@mcp_router.post("/{mcp_id}/discover", response_model=ApiResponse[dict])
+async def discover_mcp_tools(mcp_id: uuid.UUID, request: Request, ctx: RequestContext = ContextDep, db: AsyncSession = DbDep):
+    rows = await service.discover_mcp_tools(db, ctx.tenant_id, mcp_id)
+    return ApiResponse(
+        data={"mcp_id": str(mcp_id), "tools": [McpToolOut.model_validate(row).model_dump() for row in rows], "total": len(rows)},
+        request_id=get_request_id(request),
+    )
+
+
+@mcp_router.get("/{mcp_id}/tools", response_model=ApiResponse[dict])
+async def list_mcp_tools(
+    mcp_id: uuid.UUID,
+    request: Request,
+    include_disabled: bool = Query(default=False),
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+):
+    rows = await service.list_mcp_tools(db, ctx.tenant_id, mcp_id, include_disabled=include_disabled)
+    return ApiResponse(
+        data={"items": [McpToolOut.model_validate(row).model_dump() for row in rows], "total": len(rows)},
+        request_id=get_request_id(request),
+    )
 
 
 @skill_router.post("", response_model=ApiResponse[SkillOut])
