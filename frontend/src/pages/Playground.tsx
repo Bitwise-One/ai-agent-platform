@@ -33,7 +33,7 @@ import {
   useToast,
 } from "../components/ui";
 import { IconClose, IconPlay } from "../components/icons";
-import type { HiddenResponse, RagSource, RouteInfo } from "../lib/types";
+import type { HiddenResponse, RagSource, RouteInfo, ToolCallEvent } from "../lib/types";
 
 interface Turn {
   id: string;
@@ -51,6 +51,7 @@ interface Trace {
   route: RouteInfo | null;
   ragSources: RagSource[];
   hidden: HiddenResponse[];
+  toolCalls: ToolCallEvent[];
   tokens: number;
   reason: string;
   elapsedMs: number;
@@ -72,6 +73,11 @@ export function PlaygroundPage() {
   const [mode, setMode] = useState<"stream" | "sync">("stream");
   const [busy, setBusy] = useState(false);
   const [trace, setTrace] = useState<Trace | null>(null);
+  const toolCallSummary = useMemo(() => {
+    const latest = new Map<string, string>();
+    for (const event of trace?.toolCalls ?? []) latest.set(event.tool, event.status);
+    return [...latest.entries()];
+  }, [trace?.toolCalls]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -128,6 +134,7 @@ export function PlaygroundPage() {
           route: null,
           ragSources: result.rag_sources ?? [],
           hidden: result.hidden_responses ?? [],
+          toolCalls: [],
           tokens: result.token_usage,
           reason: "",
           elapsedMs: Math.round(performance.now() - startedAt),
@@ -151,6 +158,7 @@ export function PlaygroundPage() {
     let route: RouteInfo | null = null;
     let ragSources: RagSource[] = [];
     let hidden: HiddenResponse[] = [];
+    let toolCalls: ToolCallEvent[] = [];
     let runId = "";
     let convId = "";
     let finalStatus = "";
@@ -190,7 +198,10 @@ export function PlaygroundPage() {
               );
               break;
             case "hidden":
-              hidden = [...hidden, { action: event.action, payload: event.payload }];
+              hidden = [...hidden, event];
+              break;
+            case "tool_call":
+              toolCalls = [...toolCalls, { tool: event.tool, status: event.status }];
               break;
             case "done":
               finalStatus = event.status;
@@ -222,6 +233,7 @@ export function PlaygroundPage() {
       route,
       ragSources,
       hidden,
+      toolCalls,
       tokens,
       reason,
       elapsedMs: Math.round(performance.now() - startedAt),
@@ -453,6 +465,27 @@ export function PlaygroundPage() {
 
                 <div>
                   <div className="mb-1.5 flex items-center justify-between text-caption text-ink-secondary">
+                    <span>MCP 工具调用</span>
+                    <span className="tabular text-ink-tertiary">{toolCallSummary.length}</span>
+                  </div>
+                  {toolCallSummary.length === 0 ? (
+                    <p className="text-caption text-ink-tertiary">本次执行没有调用 MCP 工具</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {toolCallSummary.map(([tool, status]) => (
+                        <li key={tool} className="flex items-center justify-between gap-3 rounded-control bg-surface-fill px-2.5 py-2">
+                          <span className="min-w-0 truncate font-mono text-caption text-ink-primary">{tool}</span>
+                          <StatusTag tone={status === "start" ? "info" : status === "success" ? "success" : "error"}>
+                            {status === "start" ? "执行中" : status === "success" ? "成功" : "失败"}
+                          </StatusTag>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between text-caption text-ink-secondary">
                     <span>知识库命中</span>
                     <span className="tabular text-ink-tertiary">{trace.ragSources.length}</span>
                   </div>
@@ -493,14 +526,26 @@ export function PlaygroundPage() {
                   {trace.hidden.length === 0 ? (
                     <p className="text-caption text-ink-tertiary">本次没有结构化动作</p>
                   ) : (
-                    <motion.pre
-                      className="scroll-slim max-h-32 overflow-auto rounded-control bg-surface-fill px-2.5 py-2 font-mono text-[11px] leading-5 text-ink-secondary"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, ease: EASE, delay: 0.08 }}
-                    >
-                      {JSON.stringify(trace.hidden, null, 2)}
-                    </motion.pre>
+                    <ul className="space-y-2">
+                      {trace.hidden.map((item, index) => (
+                        <motion.li
+                          key={`${item.action}-${index}`}
+                          className="rounded-control border border-line-split bg-surface-fill px-2.5 py-2"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.24, ease: EASE }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-caption text-ink-primary">{item.action}</span>
+                            <StatusTag tone="info">{item.meta?.capability?.scope ?? "conversation"}</StatusTag>
+                          </div>
+                          <pre className="scroll-slim mt-2 max-h-28 overflow-auto font-mono text-[11px] leading-5 text-ink-secondary">
+                            {JSON.stringify(item.payload, null, 2)}
+                          </pre>
+                          <div className="mt-1 text-[10px] text-ink-tertiary">一次性动作凭证不会显示在调试记录中</div>
+                        </motion.li>
+                      ))}
+                    </ul>
                   )}
                 </div>
 

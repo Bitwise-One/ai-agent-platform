@@ -199,6 +199,21 @@ export interface RagSource {
 export interface HiddenResponse {
   action: string;
   payload: Record<string, unknown>;
+  type?: "hidden";
+  channel?: string;
+  event?: string;
+  meta?: {
+    request_id?: string;
+    agent_id?: string | null;
+    timestamp?: number;
+    capability?: { action: string; scope: string };
+    action_token?: string;
+  };
+}
+
+export interface ToolCallEvent {
+  tool: string;
+  status: "start" | "success" | "error" | string;
 }
 
 export interface ChatResult {
@@ -231,6 +246,7 @@ export type StreamEvent =
       reason: string;
     }
   | { type: "rag"; hits: number }
+  | ({ type: "tool_call" } & ToolCallEvent)
   | { type: "token"; text: string }
   | ({ type: "hidden" } & HiddenResponse)
   | {
