@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ContextDep, DbDep, RequestContext, get_request_id
 from app.schemas.agent import AgentCreate, AgentKbBind, AgentOut, AgentUpdate
 from app.schemas.common import ApiResponse
+from app.schemas.integration import IntegrationBind
 from app.services import agents as agent_service
+from app.services import integrations as integration_service
 
 router = APIRouter(prefix="/apps/{app_id}/agents", tags=["agents"])
 
@@ -116,3 +118,41 @@ async def bind_knowledge_bases(
         data={"agent_id": str(agent_id), "kb_ids": [str(k) for k in kb_ids]},
         request_id=get_request_id(request),
     )
+
+
+@router.get("/{agent_id}/mcp-servers", response_model=ApiResponse[dict])
+async def get_bound_mcp_servers(
+    app_id: uuid.UUID, agent_id: uuid.UUID, request: Request,
+    ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    await agent_service.get_agent(db, ctx.tenant_id, app_id, agent_id)
+    ids = await integration_service.get_binding_ids(db, agent_id, "mcp")
+    return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
+
+
+@router.put("/{agent_id}/mcp-servers", response_model=ApiResponse[dict])
+async def bind_mcp_servers(
+    app_id: uuid.UUID, agent_id: uuid.UUID, payload: IntegrationBind, request: Request,
+    ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    ids = await integration_service.bind_mcp(db, ctx.tenant_id, app_id, agent_id, payload.ids)
+    return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
+
+
+@router.get("/{agent_id}/skills", response_model=ApiResponse[dict])
+async def get_bound_skills(
+    app_id: uuid.UUID, agent_id: uuid.UUID, request: Request,
+    ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    await agent_service.get_agent(db, ctx.tenant_id, app_id, agent_id)
+    ids = await integration_service.get_binding_ids(db, agent_id, "skill")
+    return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
+
+
+@router.put("/{agent_id}/skills", response_model=ApiResponse[dict])
+async def bind_skills(
+    app_id: uuid.UUID, agent_id: uuid.UUID, payload: IntegrationBind, request: Request,
+    ctx: RequestContext = ContextDep, db: AsyncSession = DbDep,
+) -> ApiResponse[dict]:
+    ids = await integration_service.bind_skill(db, ctx.tenant_id, app_id, agent_id, payload.ids)
+    return ApiResponse(data={"agent_id": str(agent_id), "ids": [str(item) for item in ids]}, request_id=get_request_id(request))
