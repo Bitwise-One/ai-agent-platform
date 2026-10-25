@@ -13,10 +13,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, CreatedAtMixin, JSONType, TimestampMixin
+from app.models.base import Base, CreatedAtMixin, JSONType, TimestampMixin, utcnow
 
 
 class McpServer(Base, TimestampMixin):
@@ -41,6 +42,24 @@ class McpToolRecord(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, comment="远端工具说明，视为不可信数据")
     input_schema: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict, comment="远端工具参数 JSON Schema，调用前需校验")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, comment="是否允许 Agent 绑定及调用")
+
+
+class McpCallLog(Base):
+    __tablename__ = "mcp_call_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, comment="主键，UUID")
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True, comment="所属租户（RLS 依赖）")
+    application_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("application.id"), nullable=False, index=True, comment="调用所属应用")
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent.id"), nullable=False, index=True, comment="发起调用的 Agent")
+    mcp_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mcp_server.id"), nullable=False, index=True, comment="目标 MCP 服务")
+    tool_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mcp_tool.id"), nullable=False, index=True, comment="目标 MCP 工具")
+    request_id: Mapped[str | None] = mapped_column(String(128), comment="关联平台请求 ID")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, comment="调用结果：success/error")
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, comment="调用耗时（毫秒）")
+    error_code: Mapped[str | None] = mapped_column(String(64), comment="脱敏错误类型")
+    input_summary: Mapped[dict | None] = mapped_column(JSONType, comment="脱敏后的参数摘要，不保存原始内容")
+    output_summary: Mapped[dict | None] = mapped_column(JSONType, comment="脱敏后的结果摘要，不保存原始内容")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now(), comment="调用时间（UTC）")
 
 
 class Skill(Base, TimestampMixin):

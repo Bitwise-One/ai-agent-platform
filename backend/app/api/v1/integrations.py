@@ -83,6 +83,42 @@ async def list_mcp_tools(
     )
 
 
+@mcp_router.get("/calls/logs", response_model=ApiResponse[dict])
+async def list_mcp_call_logs(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
+    status: str | None = Query(default=None, pattern="^(success|error)$"),
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+):
+    rows, total = await service.list_mcp_call_logs(
+        db,
+        ctx.tenant_id,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+        status=status,
+    )
+    items = [
+        {
+            "id": str(row.id),
+            "application_id": str(row.application_id),
+            "agent_id": str(row.agent_id),
+            "mcp_id": str(row.mcp_id),
+            "tool_id": str(row.tool_id),
+            "request_id": row.request_id,
+            "status": row.status,
+            "latency_ms": row.latency_ms,
+            "error_code": row.error_code,
+            "input_summary": row.input_summary,
+            "output_summary": row.output_summary,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+    return ApiResponse(data={"items": items, "total": total, "page": page, "page_size": page_size}, request_id=get_request_id(request))
+
+
 @skill_router.post("", response_model=ApiResponse[SkillOut])
 async def create_skill(payload: SkillCreate, request: Request, ctx: RequestContext = ContextDep, db: AsyncSession = DbDep):
     return ApiResponse(data=SkillOut.model_validate(await service.create_skill(db, ctx.tenant_id, payload)), request_id=get_request_id(request))

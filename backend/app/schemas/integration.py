@@ -113,6 +113,10 @@ class McpToolBind(BaseModel):
         return value
 
 
+class McpToolCallRequest(BaseModel):
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class SkillCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = None
