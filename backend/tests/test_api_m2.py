@@ -3,6 +3,8 @@
 这些用例先于实现编写，作为接口契约。
 """
 
+import json
+
 import pytest
 
 TENANT_HEADER = "X-Tenant-Id"
@@ -222,6 +224,16 @@ async def test_chat_stream_emits_sse_events(client):
     # 前端就只剩 token 可看，因此这里显式断言它存在。
     assert "event: route" in body
     assert '"strategy"' in body
+    frames = [frame for frame in body.split("\n\n") if frame]
+    ids = [int(next(line[4:] for line in frame.splitlines() if line.startswith("id: "))) for frame in frames]
+    events = [
+        json.loads(next(line[5:].strip() for line in frame.splitlines() if line.startswith("data:")))
+        for frame in frames
+    ]
+    assert ids == list(range(1, len(ids) + 1))
+    assert all(event["id"] == event_id for event, event_id in zip(events, ids, strict=True))
+    run_ids = {event["run_id"] for event in events}
+    assert len(run_ids) == 1
 
 
 @pytest.mark.asyncio

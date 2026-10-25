@@ -45,14 +45,16 @@ def _format_sse(event: dict) -> str:
     `event` 字段取事件类型，`data` 为完整 JSON（含 type 便于前端二次判断）。
     """
     event_type = event.get("type", "message")
+    event_id = event.get("id")
     body = json.dumps(event, ensure_ascii=False)
-    return f"event: {event_type}\ndata: {body}\n\n"
+    return f"id: {event_id}\nevent: {event_type}\ndata: {body}\n\n"
 
 
 @router.post("/{app_id}/chat/stream")
 async def chat_stream(
     app_id: uuid.UUID,
     payload: ChatRequest,
+    request: Request,
     ctx: RequestContext = ContextDep,
     db: AsyncSession = DbDep,
 ) -> StreamingResponse:
@@ -64,12 +66,20 @@ async def chat_stream(
     """
 
     async def _gen():
+        sequence = 0
+        run_id: str | None = None
         try:
             async for event in chat_service.stream_chat(db, ctx, app_id, payload):
-                yield _format_sse(event)
+                if event.get("type") == "meta":
+                    run_id = event.get("run_id")
+                sequence += 1
+                yield _format_sse({**event, "id": sequence, "run_id": run_id})
         except Exception as exc:  # noqa: BLE001 - 兜底：任何异常都要给前端终止信号
-            yield _format_sse({"type": "error", "message": str(exc)[:500]})
-            yield _format_sse({"type": "done", "status": "failed"})
+            run_id = run_id or f"unstarted-{get_request_id(request)}"
+            sequence += 1
+            yield _format_sse({"type": "error", "id": sequence, "run_id": run_id, "message": str(exc)[:500]})
+            sequence += 1
+            yield _format_sse({"type": "done", "id": sequence, "run_id": run_id, "status": "failed"})
 
     return StreamingResponse(
         _gen(),
