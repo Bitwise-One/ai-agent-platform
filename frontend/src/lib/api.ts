@@ -78,10 +78,13 @@ async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
+  const isForm = options.body instanceof FormData;
+  const headers = baseHeaders(options.headers);
+  if (isForm) delete headers["Content-Type"];
   const res = await fetch(`${BASE}${path}`, {
     method: options.method ?? "GET",
-    headers: baseHeaders(options.headers),
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    headers,
+    body: isForm ? options.body as FormData : options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
   let payload: Envelope<T> | null = null;
@@ -242,6 +245,11 @@ export const workflowsApi = {
 };
 
 export const knowledgeApi = {
+  upload: (kbId: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<KbDocument>(`/api/v1/knowledge-bases/${kbId}/documents/upload`, { method: "POST", body });
+  },
   list: () => api.list<KnowledgeBase>("/api/v1/knowledge-bases?page_size=200"),
   create: (name: string, description?: string) =>
     api.post<KnowledgeBase>("/api/v1/knowledge-bases", { name, description }),

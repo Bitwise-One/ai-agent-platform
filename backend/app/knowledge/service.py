@@ -87,6 +87,14 @@ async def delete_kb(session: AsyncSession, tenant_id: uuid.UUID, kb_id: uuid.UUI
     """软删除知识库，并同步软删其下文档，避免残留可被检索。"""
     kb = await get_kb(session, tenant_id, kb_id)
     kb.deleted_at = utcnow()
+    await session.execute(
+        delete(Chunk).where(
+            Chunk.tenant_id == tenant_id,
+            Chunk.document_id.in_(select(Document.id).where(
+                Document.kb_id == kb_id, Document.tenant_id == tenant_id
+            )),
+        )
+    )
     docs = await session.scalars(
         select(Document).where(Document.kb_id == kb_id, Document.deleted_at.is_(None))
     )
@@ -173,7 +181,8 @@ async def list_documents(
 
 
 async def delete_document(
-    session: AsyncSession, tenant_id: uuid.UUID, doc_id: uuid.UUID
+    session: AsyncSession, tenant_id: uuid.UUID, doc_id: uuid.UUID,
+    *, kb_id: uuid.UUID | None = None,
 ) -> None:
     """软删文档，同时删除其 chunk，防止已删内容仍被召回（FR-K-12）。"""
     doc = await session.scalar(
@@ -183,7 +192,7 @@ async def delete_document(
             Document.deleted_at.is_(None),
         )
     )
-    if doc is None:
+    if doc is None or (kb_id is not None and doc.kb_id != kb_id):
         raise NotFound("文档不存在")
 
     doc.deleted_at = utcnow()

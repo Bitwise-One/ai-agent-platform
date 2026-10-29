@@ -3,10 +3,11 @@
 import time
 import uuid
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, File, Query, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ContextDep, DbDep, RequestContext, get_request_id
+from app.core.errors import AppError
 from app.knowledge import service as kb_service
 from app.schemas.common import ApiResponse
 from app.schemas.knowledge import (
@@ -90,6 +91,40 @@ async def delete_kb(
 
 
 # ---------------------------------------------------------------- 文档
+@router.post("/{kb_id}/documents/upload", response_model=ApiResponse[DocumentOut])
+async def upload_document(
+    kb_id: uuid.UUID,
+    request: Request,
+    file: UploadFile = File(...),
+    ctx: RequestContext = ContextDep,
+    db: AsyncSession = DbDep,
+) -> ApiResponse[DocumentOut]:
+    """上传 UTF-8 文本，不执行文件内容、不使用文件名构造磁盘路径。"""
+    try:
+        await kb_service.get_kb(db, ctx.tenant_id, kb_id)
+        filename = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+        file_type = filename.rsplit(".", 1)[-1].lower()
+        if file_type not in {"txt", "md"}:
+            raise AppError(10001, "只支持 TXT/Markdown 文件", http_status=415)
+        raw = await file.read(2 * 1024 * 1024 + 1)
+        if len(raw) > 2 * 1024 * 1024:
+            raise AppError(10001, "文件不能超过 2 MiB", http_status=413)
+        try:
+            content = raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise AppError(10001, "文件必须使用 UTF-8 编码", http_status=422) from exc
+        if not content.strip() or "\x00" in content:
+            raise AppError(10001, "文件必须包含有效文本正文", http_status=422)
+        doc = await kb_service.ingest_document(
+            db, ctx.tenant_id, kb_id,
+            title=filename.rsplit(".", 1)[0] or filename,
+            content=content, source=filename, file_type=file_type,
+        )
+        return ApiResponse(data=DocumentOut.model_validate(doc), request_id=get_request_id(request))
+    finally:
+        await file.close()
+
+
 @router.post("/{kb_id}/documents", response_model=ApiResponse[DocumentOut])
 async def ingest_document(
     kb_id: uuid.UUID,
@@ -140,7 +175,8 @@ async def delete_document(
     ctx: RequestContext = ContextDep,
     db: AsyncSession = DbDep,
 ) -> ApiResponse[dict]:
-    await kb_service.delete_document(db, ctx.tenant_id, doc_id)
+    await kb_service.get_kb(db, ctx.tenant_id, kb_id)
+    await kb_service.delete_document(db, ctx.tenant_id, doc_id, kb_id=kb_id)
     return ApiResponse(data={"deleted": str(doc_id)}, request_id=get_request_id(request))
 
 

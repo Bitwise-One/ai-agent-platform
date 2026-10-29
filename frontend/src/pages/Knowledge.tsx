@@ -58,6 +58,7 @@ export function KnowledgePage() {
   const [docSource, setDocSource] = useState("");
   const [docFileType, setDocFileType] = useState("text");
   const uploadRef = useRef<HTMLInputElement>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [kbName, setKbName] = useState("");
   const [kbDesc, setKbDesc] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -107,13 +108,16 @@ export function KnowledgePage() {
 
   const ingest = async () => {
     if (!activeId) return;
-    if (!docTitle.trim() || !docContent.trim()) {
+    if (!uploadFile && (!docTitle.trim() || !docContent.trim())) {
       setFormError("标题与正文均为必填");
       return;
     }
     try {
       await run(async () => {
-        await knowledgeApi.ingest(activeId, docTitle.trim(), docContent.trim(), docSource || undefined, docFileType);
+        const doc = uploadFile
+          ? await knowledgeApi.upload(activeId, uploadFile)
+          : await knowledgeApi.ingest(activeId, docTitle.trim(), docContent.trim(), docSource || undefined, docFileType);
+        if (doc.status !== "indexed") throw new Error("文档未完成索引，请检查正文后重试");
       });
       toast.push("文档已入库并完成向量化");
       setDocOpen(false);
@@ -121,6 +125,7 @@ export function KnowledgePage() {
       setDocContent("");
       setDocSource("");
       setDocFileType("text");
+      setUploadFile(null);
       await docs.reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "入库失败");
@@ -157,15 +162,8 @@ export function KnowledgePage() {
       setFormError("文本文档不能超过 2 MiB");
       return;
     }
-    try {
-      setDocTitle(file.name.replace(/\.(txt|md)$/i, ""));
-      setDocContent(await file.text());
-      setDocSource(file.name);
-      setDocFileType(ext);
-      setFormError(null);
-    } catch {
-      setFormError("无法读取所选文件");
-    }
+    setUploadFile(file);
+    setFormError(null);
   };
 
   const search = async () => {
@@ -463,11 +461,13 @@ export function KnowledgePage() {
         <div className="space-y-4">
           {formError && <ErrorNote message={formError} />}
           <input ref={uploadRef} type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={(event) => void loadTextFile(event)} />
-          <div className="flex items-center justify-between gap-3 rounded-control border border-line-split bg-surface-fill px-3 py-2.5"><div><div className="text-body font-medium text-ink-primary">从文本文件导入</div><div className="mt-0.5 text-caption text-ink-tertiary">支持 .txt / .md，最大 2 MiB；PDF/Word 解析尚未接入</div></div><Button size="sm" onClick={() => uploadRef.current?.click()}>选择文件</Button></div>
+          <div className="flex items-center justify-between gap-3 rounded-control border border-line-split bg-surface-fill px-3 py-2.5"><div><div className="text-body font-medium text-ink-primary">上传文本文件</div><div className="mt-0.5 text-caption text-ink-tertiary">支持 UTF-8 .txt / .md，最大 2 MiB；PDF/Word 解析尚未接入</div></div><Button size="sm" disabled={pending} onClick={() => uploadRef.current?.click()}>选择文件</Button></div>
+          {uploadFile && <div className="flex items-center justify-between gap-2 text-caption text-ink-secondary"><span>待上传：{uploadFile.name}（标题取文件名，正文由服务端解析）</span><Button size="sm" disabled={pending} onClick={() => setUploadFile(null)}>改为手动录入</Button></div>}
           {docSource && <div className="text-caption text-ink-tertiary">来源：{docSource}</div>}
           <Field label="标题" required>
             <Input
               value={docTitle}
+              disabled={Boolean(uploadFile) || pending}
               onChange={(e) => setDocTitle(e.target.value)}
               placeholder="如：退换货政策"
             />
@@ -476,6 +476,7 @@ export function KnowledgePage() {
             <Textarea
               className="min-h-[200px]"
               value={docContent}
+              disabled={Boolean(uploadFile) || pending}
               onChange={(e) => setDocContent(e.target.value)}
               placeholder="粘贴文档正文…"
             />
